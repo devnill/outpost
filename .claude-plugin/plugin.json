@@ -1,0 +1,17 @@
+{
+  "name": "outpost",
+  "description": "MCP orchestration infrastructure for delegating work to separate Claude Code instances, supporting both local subprocess and remote process execution.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Dan Singer"
+  },
+  "license": "MIT",
+  "keywords": ["mcp", "orchestration", "parallel", "remote", "session-management"],
+  "mcpServers": {
+    "outpost": {
+      "command": "python",
+      "args": ["${pluginPath}/mcp/server.py"],
+      "env": {}
+    }
+  }
+}
