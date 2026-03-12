@@ -51,6 +51,17 @@ specs/
 └── journal.md    # Running log of execution progress
 ```
 
+## Agents
+
+Outpost includes agent definitions for orchestrated workflows:
+
+```
+agents/
+├── manager.md    # Coordinates parallel workers, monitors job health
+```
+
+The manager agent acts as a watchdog for remote job orchestration. It monitors worker status, detects stalled or failed jobs, and produces structured status reports.
+
 ## MCP Server Setup
 
 ### Register the MCP server

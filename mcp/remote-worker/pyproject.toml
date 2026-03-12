@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "outpost-remote-worker"
+version = "0.1.0"
+description = "Remote worker daemon for outpost — accepts jobs via REST API and executes them using the claude CLI"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi>=0.100.0",
+    "uvicorn>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "httpx>=0.24.0",
+]
+
+[project.scripts]
+outpost-worker = "server:main"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
