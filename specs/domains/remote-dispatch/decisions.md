@@ -146,3 +146,74 @@
 - **Rationale**: Process cwd inheritance and `--cwd` flag are currently equivalent in practice, but the divergence is a latent correctness risk if Claude CLI behavior changes. The false docstring claim compounds the risk.
 - **Source**: archive/cycles/007/code-quality.md (M4), archive/cycles/007/decision-log.md (RV-004/OQ-023)
 - **Status**: settled
+
+## D-24: Container sandboxing via ephemeral Docker containers (per-job)
+- **Decision**: Each remote-worker job runs in an ephemeral Docker container (`--rm`) when `OUTPOST_AGENT_IMAGE` is set. Container is named `job-{job_id}` for cancel coordination. Host working directory is bind-mounted to `/workspace`. Container boundary replaces interactive permission checks; `--permission-mode dangerouslySkipPermissions` is always used inside container.
+- **Rationale**: Security and modularity requirements for running unattended Claude Code with `--dangerously-skip-permissions`. Container isolation provides a hard boundary that replaces interactive permission prompts.
+- **Assumes**: Docker is installed on the remote-worker host; the configured image includes Claude CLI.
+- **Source**: archive/cycles/008/decision-log.md (D-028), architecture.md Section 9
+- **Policy**: P-6
+- **Status**: settled
+
+## D-25: Backward-compatible container mode activation via env var
+- **Decision**: Container mode activates only when `OUTPOST_AGENT_IMAGE` is non-empty. Default is empty string (no container). When empty, `_run_claude_job` behaves identically to pre-cycle-8 behavior. No breaking changes for deployments that do not set the new env var.
+- **Rationale**: Existing deployments must continue working without modification. Container mode is opt-in.
+- **Source**: archive/cycles/008/decision-log.md (D-029)
+- **Policy**: P-6
+- **Status**: settled
+
+## D-26: container_name assigned after process start and cancelled guard
+- **Decision**: `record.process = proc` is assigned immediately after the cancelled guard. `record.container_name = f"job-{record.job_id}"` is set only after `record.process` is assigned, both inside the same guard section. Both are cleared in the `finally` block.
+- **Rationale**: Original code set `container_name` before `subprocess.Popen`, creating a race where `cancel_job` could call `docker stop` on a non-existent container.
+- **Source**: archive/cycles/008/decision-log.md (D-031), server.py:468-470
+- **Policy**: P-7
+- **Status**: settled
+
+## D-27: FileNotFoundError message branches on container mode
+- **Decision**: `except FileNotFoundError` branches on `_agent_image`: container mode returns "docker not found on PATH...", bare subprocess mode returns "claude CLI not found on PATH...".
+- **Rationale**: Generic error message was misleading in container mode where Docker (not Claude CLI) is the missing binary.
+- **Source**: archive/cycles/008/decision-log.md (D-032), server.py:450-460
+- **Status**: settled
+
+## D-28: Daemon runs on host; container isolation sufficient for initial implementation
+- **Decision**: Remote-worker daemon runs directly on host. Per-job containers provide isolation for agent execution. Daemon containerization deferred as a deployment concern for a later iteration.
+- **Rationale**: Container isolation at the job level meets the current security requirements without the complexity of containerizing the daemon itself.
+- **Source**: archive/cycles/008/decision-log.md (D-033), interview 2026-03-22 Q2
+- **Status**: settled
+
+## D-29: usermod/groupmod to create agent user in Dockerfile
+- **Decision**: Rename the existing `node` user (uid 1000) to `agent` via `usermod -l agent -d /home/agent -m node && groupmod -n agent node` in the Dockerfile. Avoids uid conflict with `node:20-bookworm-slim` base image which ships with a `node` user at uid 1000.
+- **Rationale**: `useradd -u 1000` fails with "UID 1000 is not unique" on this base image. Renaming preserves the uid while giving the user an appropriate name.
+- **Source**: archive/cycles/008/decision-log.md (D-030)
+- **Status**: settled
+
+## D-30: ANTHROPIC_API_KEY passed name-only to docker run
+- **Decision**: `_build_container_cmd` passes `"-e", "ANTHROPIC_API_KEY"` (name-only, no `={value}`). Docker inherits the variable from the host process environment without embedding the secret in the command line.
+- **Rationale**: The original form `f"ANTHROPIC_API_KEY={value}"` embedded the key in the process command list, visible via `ps aux` and `/proc/<pid>/cmdline`. Name-only form avoids process-table exposure.
+- **Source**: archive/cycles/009/decision-log.md (D-034), WI-051
+- **Status**: settled
+
+## D-31: HTTP 500 pre-flight check for missing ANTHROPIC_API_KEY in container mode
+- **Decision**: `create_job` validates `ANTHROPIC_API_KEY` is present in the worker environment before creating a job record when `_agent_image` is set. Returns HTTP 500 with actionable detail message if absent.
+- **Rationale**: Without the check, jobs submitted with container mode active but no API key fail silently inside the container. HTTP 500 (not 400) because the key is the operator's responsibility, not the client's.
+- **Source**: archive/cycles/009/decision-log.md (D-035), WI-051
+- **Status**: settled
+
+## D-32: asyncio.to_thread wrapping for docker stop in cancel_job
+- **Decision**: `cancel_job` wraps `subprocess.run(["docker", "stop", ...])` in `await asyncio.to_thread(...)` to avoid blocking the async event loop during the docker stop timeout window (up to 15 seconds).
+- **Rationale**: `cancel_job` is `async def`. Direct `subprocess.run` would block the event loop, preventing other requests from being handled during the docker stop wait.
+- **Source**: archive/cycles/009/decision-log.md (D-036), WI-051
+- **Status**: settled
+
+## D-33: proc.terminate() gated on not container_name after docker stop
+- **Decision**: In `cancel_job`, `proc.terminate()` is now conditional on `not container_name`. When cancelling a containerized job, `docker stop` already causes `docker run` to exit; a subsequent `proc.terminate()` is structurally wrong because it always hits the `ProcessLookupError` exception path on an already-exited process.
+- **Rationale**: `docker stop` sends SIGTERM then SIGKILL to the container's main process, which causes the host-side `docker run` process to exit. The unconditional `proc.terminate()` was redundant in container mode and exercised the exception handler on every container cancel, not just edge cases.
+- **Source**: archive/cycles/009/code-quality.md (C1), archive/cycles/009/decision-log.md (D-037)
+- **Policy**: P-8
+- **Status**: settled
+
+## D-34: FileNotFoundError log message branches on container mode
+- **Decision**: The `_FILE_NOT_FOUND` sentinel log message now reads `"docker not found"` when `_agent_image` is set, vs `"claude not found"` otherwise. The error text stored in `record.error` already branched correctly (D-27); this fix aligns the log output to match.
+- **Rationale**: Operators tailing logs in container mode were seeing "claude not found" when the real issue was a missing docker binary, misdirecting investigation.
+- **Source**: archive/cycles/009/code-quality.md (S1), archive/cycles/009/decision-log.md (D-038)
+- **Status**: settled

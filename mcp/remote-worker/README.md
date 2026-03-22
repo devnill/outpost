@@ -9,6 +9,7 @@ Deploy one instance per machine you want to use as a remote worker. The local se
 - Python 3.10+
 - `claude` CLI installed and available on PATH
 - `fastapi` and `uvicorn` Python packages
+- Docker CE or Docker Engine (required only when `OUTPOST_AGENT_IMAGE` is set — see Container Mode below)
 
 ## Installation
 
@@ -49,6 +50,39 @@ The server listens on `0.0.0.0:7432` by default. All requests must include the `
 | `IDEATE_WORKER_MAX_CONCURRENCY` | `3` | Maximum number of jobs executed simultaneously. Additional jobs queue and wait. |
 | `IDEATE_WORKER_MAX_JOBS` | `1000` | Maximum number of jobs to retain in the in-memory store. Terminal jobs are evicted oldest-first when the limit is exceeded. |
 | `IDEATE_WORKER_BASE_DIR` | *(unset)* | When set, restricts `working_dir` in job requests to paths within this directory. Symlinks are resolved before comparison. |
+| `OUTPOST_AGENT_IMAGE` | *(unset)* | Docker image to use for job containers. When set, each job runs inside an ephemeral Docker container rather than a bare subprocess. Empty string (default) disables container mode. |
+| `OUTPOST_CONTAINER_RUNTIME` | *(unset)* | Container runtime override. Set to `runsc` to use gVisor for an additional kernel isolation boundary. Empty string uses the default Docker runtime. |
+| `OUTPOST_CONTAINER_MEMORY` | `4g` | Memory limit for job containers. Passed as `--memory` and `--memory-swap` to `docker run`. |
+| `OUTPOST_CONTAINER_CPUS` | `2` | CPU limit for job containers. Passed as `--cpus` to `docker run`. |
+
+## Container Mode
+
+When `OUTPOST_AGENT_IMAGE` is set, each job runs inside an ephemeral Docker container rather than a bare subprocess. The container provides isolation between the agent's execution environment and the host machine.
+
+To enable container mode, build the provided agent image and set the env var:
+
+```bash
+docker build -t outpost-agent:latest mcp/remote-worker/
+OUTPOST_AGENT_IMAGE=outpost-agent:latest IDEATE_WORKER_API_KEY=your-key outpost-worker
+```
+
+**ANTHROPIC_API_KEY**: The worker passes `ANTHROPIC_API_KEY` from its own environment into each container. You must set `ANTHROPIC_API_KEY` in the worker process environment before starting the server:
+
+```bash
+export ANTHROPIC_API_KEY=your-anthropic-key
+OUTPOST_AGENT_IMAGE=outpost-agent:latest IDEATE_WORKER_API_KEY=your-key outpost-worker
+```
+
+If `ANTHROPIC_API_KEY` is not set and container mode is active, the worker will reject job submissions with HTTP 500.
+
+**Security flags applied to each container**:
+- `--cap-drop ALL` — no Linux capabilities
+- `--security-opt no-new-privileges` — prevents setuid/setgid escalation
+- `--user 1000:1000` — runs as non-root uid 1000
+- `--pids-limit 512` — prevents fork bombs
+- `--rm` — container removed automatically on exit
+
+When container mode is not set (`OUTPOST_AGENT_IMAGE` is empty), the worker behaves exactly as before — spawning `claude` as a direct subprocess.
 
 ## API Reference
 

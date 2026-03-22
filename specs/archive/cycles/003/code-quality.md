@@ -1,112 +1,40 @@
-# Code Quality Review — Cycle 003
+## Verdict: Fail
 
-**Review Date**: 2026-03-16  
-**Reviewer**: Claude Code  
-**Scope**: Full Outpost project — cross-cutting concerns, consistency, integration
-
----
-
-## Verdict: Pass
-
-The Outpost project demonstrates solid code quality with comprehensive test coverage (97 tests, all passing), consistent error handling patterns, and proper resource management. Minor findings are noted but do not impact correctness or security.
-
----
+Two new significant findings. Prior cycle S1 (git diff subprocess leak) and P7-1 (unbounded job_queue) verified fixed.
 
 ## Critical Findings
 
 None.
 
----
-
 ## Significant Findings
 
-None.
+### S1: TOCTOU race between `job_queue.full()` check and `job_queue.put()` allows queue overflow
+- **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:201-210`
+- **Issue**: The 429 gate (`job_queue.full()`) and the enqueue (`await job_queue.put(job_id)`) are not atomic. Two concurrent `POST /jobs` requests can both pass the `full()` check simultaneously. Because `asyncio.Queue.put()` blocks when full, the second coroutine suspends indefinitely at the put, holding a live connection open rather than returning 429.
+- **Impact**: Under concurrent load at capacity, the 429 back-pressure mechanism fails silently. Requests block instead of being rejected, consuming connection resources and violating the API contract.
+- **Suggested fix**: Replace `await job_queue.put(job_id)` with `job_queue.put_nowait(job_id)` wrapped in `try/except asyncio.QueueFull`, raising HTTPException 429 in the except block. This makes the check-and-enqueue atomic within the single-threaded asyncio event loop.
 
----
+### S2: `_handle_cancel_remote_job` returns on first connection error, masking real result
+- **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:1031-1039`
+- **Issue**: The second pass in `_handle_cancel_remote_job` returns immediately on any `_status in ("conflict", "error")`. Connection errors (`_status: "error"`) are included. With multiple workers, a network failure on any worker that never owned the job returns a "Connection error for worker X" instead of "job not found" — preempting the not-found check.
+- **Impact**: A transient network failure on any non-owning worker produces an incorrect error message, masking the true result.
+- **Suggested fix**: Separate connection errors from 409 conflict. Only return immediately on 409 conflict (which is definitive from a specific worker). Collect connection errors and surface them only if no other resolution is found.
 
 ## Minor Findings
 
-### M1: Inconsistent datetime formatting pattern between components
+### M1: TimeoutExpired path omits stderr from error message (carry-forward)
+- **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:408`
 
-- **File**: `mcp/remote-worker/server.py:61-63`, `mcp/session-spawner/server.py:525`
-- **Issue**: Both components use the same datetime formatting pattern `.isoformat(timespec="milliseconds").replace("+00:00", "Z")` which is correct, but the pattern is duplicated across modules without a shared utility function. This creates a maintenance risk if the format needs to change.
-- **Suggested fix**: Extract a shared utility function in a common module, or at minimum add a comment referencing the other location to ensure changes are synchronized.
+### M3: `_handle_spawn_remote_session` does not validate `working_dir` before HTTP calls (carry-forward)
+- **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:736-810`
 
-### M2: Bare `except Exception` in worker error handling could mask unexpected failures
+### M4: `_semaphore` created at module scope before event loop (carry-forward)
+- **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:1195`
+- **Issue**: `asyncio.Semaphore(DEFAULT_CONCURRENCY)` assigned at module level. On Python 3.10+ safe, but a caller that imports the module without running `main()` re-introduces the original compatibility risk.
 
-- **File**: `mcp/remote-worker/server.py:396`
-- **Issue**: The worker coroutine catches all exceptions with `except Exception as exc` and logs them. While this prevents worker crashes, it could mask programming errors or unexpected exceptions that should propagate or be handled differently.
-- **Suggested fix**: Consider catching specific exception types (e.g., `asyncio.CancelledError` separately) and re-raising unexpected exceptions after logging, or document the intentional broad catch with a comment explaining why all exceptions must be swallowed here.
-
-### M3: Version number inconsistency between components
-
-- **File**: `mcp/session-spawner/server.py:50`, `mcp/remote-worker/server.py:30`
-- **Issue**: session-spawner is at version "0.4.0" while remote-worker is at "0.1.0". Given they are part of the same Outpost project and released together, the version disparity could confuse users about compatibility.
-- **Suggested fix**: Align versions across components, or document the versioning strategy (e.g., independent component versioning) in the architecture document.
-
-### M4: Typo in comment
-
-- **File**: `mcp/session-spawner/server.py:956`
-- **Issue**: Comment says "Fix 3" but refers to semaphore creation. This appears to be a copy-paste artifact from an earlier fix numbering scheme.
-- **Suggested fix**: Remove the "Fix 3:" prefix or update to reflect the actual change purpose.
-
-### M5: Module-level globals initialized with defaults that may not match runtime configuration
-
-- **File**: `mcp/session-spawner/server.py:1025-1030`
-- **Issue**: Module-level globals like `_semaphore`, `_server_max_depth`, `_roles`, `_remote_workers`, and `_http_session` are initialized with default values at import time, then re-initialized in `main()`. If code accesses these before `main()` runs (e.g., in tests or if imported as a module), the defaults may not match the configured values from environment variables.
-- **Suggested fix**: This is a known pattern used for testability (as evidenced by the `_reset_globals` fixture). Document this intentional design in a module-level comment to prevent future developers from assuming the defaults are authoritative.
-
----
+### M5: conftest module alias dependency undocumented (carry-forward)
+- **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:19`, `/Users/dan/code/outpost/mcp/session-spawner/test_server.py:20`
 
 ## Unmet Acceptance Criteria
 
-None. All work items in the review manifest have been verified as complete.
-
----
-
-## Cross-Cutting Concerns Assessment
-
-### Consistency Across Modules
-
-| Aspect | Assessment |
-|--------|------------|
-| Error handling | Consistent use of structured JSON responses with error fields |
-| Logging | Both components use Python logging with appropriate levels |
-| Configuration | Both use environment variable-based configuration exclusively |
-| Datetime formatting | Consistent ISO 8601 with millisecond precision and Z suffix |
-| Subprocess handling | Both use `subprocess.Popen`/`subprocess.run` with proper timeout handling |
-
-### Integration Points
-
-| Integration | Status | Notes |
-|-------------|--------|-------|
-| session-spawner → remote-worker HTTP API | Verified | Health checks, job submission, polling all tested |
-| remote-worker → claude CLI | Verified | Mocked in tests, pattern validated |
-| Role system | Verified | Both local and remote dispatch apply role constraints |
-| Authentication | Verified | API key header authentication with constant-time comparison |
-
-### Test Coverage
-
-| Component | Tests | Coverage Quality |
-|-----------|-------|------------------|
-| session-spawner | 65 | Excellent — covers happy path, error paths, edge cases, concurrency |
-| remote-worker | 32 | Excellent — covers all endpoints, auth, cancellation, UTF-8 handling |
-
-### Security Assessment
-
-| Check | Status | Notes |
-|-------|--------|-------|
-| API key storage | Pass | Keys stored in environment variables only |
-| API key comparison | Pass | Uses `hmac.compare_digest` for constant-time comparison |
-| Path traversal | Pass | `OUTPOST_SAFE_ROOT` and `IDEATE_WORKER_BASE_DIR` constraints enforced |
-| Prompt injection | Pass | Prompt size limited to 100KB, validated before processing |
-| Command injection | Pass | No shell=True, all subprocess args are lists |
-| Secrets in logs | Pass | API keys not logged (logged as "configured" / "NOT SET") |
-
----
-
-## Summary
-
-The Outpost codebase is well-structured, thoroughly tested, and follows security best practices. The minor findings are documentation and maintenance issues rather than functional defects. The cross-component integration is solid, with consistent patterns for error handling, logging, and configuration management.
-
-**Recommendation**: Address M1 (shared datetime utility) and M2 (exception handling specificity) in a future maintenance cycle. The other findings are cosmetic and can be addressed opportunistically.
+None.

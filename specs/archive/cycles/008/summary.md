@@ -1,0 +1,64 @@
+# Review Summary — Cycle 8
+
+## Overview
+
+Cycle 8 delivered Docker container sandboxing for the remote-worker daemon (WI-047–050). The implementation is functionally correct with all security flags present, backward compatibility maintained, and the architecture document updated. Two significant findings require fixes before this feature is safe to deploy: a secret leaking into the process table, and a missing cancel-path test. The headline feature is also invisible in both the remote-worker README and the root README.
+
+## Critical Findings
+
+None.
+
+## Significant Findings
+
+- [code-reviewer] **ANTHROPIC_API_KEY value baked into docker run command list** (`mcp/remote-worker/server.py:415`) — the key is passed as `-e ANTHROPIC_API_KEY=<value>`, making it visible to any local user via `ps aux` or `/proc/<pid>/cmdline` during container job execution. Fix: change to `-e ANTHROPIC_API_KEY` (name only; Docker inherits the value from the host process environment without embedding it in cmdline). — relates to: cross-cutting (security boundary)
+
+- [code-reviewer] **No test for `docker stop` invocation in cancel path** (`mcp/remote-worker/test_server.py`) — `cancel_job` calls `subprocess.run(["docker", "stop", container_name])` when `container_name` is set, but no test exercises this path. A regression in cancel-path container termination is invisible to the test suite. — relates to: WI-048/WI-049 (container mode)
+
+- [gap-analyst] **remote-worker README missing all container mode documentation** (`mcp/remote-worker/README.md`) — env var table does not list `OUTPOST_AGENT_IMAGE`, `OUTPOST_CONTAINER_RUNTIME`, `OUTPOST_CONTAINER_MEMORY`, `OUTPOST_CONTAINER_CPUS`. Docker is not mentioned in Prerequisites. `ANTHROPIC_API_KEY` forwarding requirement is absent. Users cannot deploy container mode following the README alone; missing `ANTHROPIC_API_KEY` causes silent job failures. — relates to: WI-047/WI-048 (container mode)
+
+- [gap-analyst] **Root README has no mention of container sandboxing** (`README.md`) — the primary project entry point contains no reference to Docker, containers, sandboxing, `OUTPOST_AGENT_IMAGE`, or `mcp/remote-worker/Dockerfile`. The headline feature of cycle 8 is undiscoverable from the root. — relates to: cross-cutting (documentation)
+
+## Minor Findings
+
+- [code-reviewer] `_evict_terminal_jobs_locked` not called in cancel-while-starting path in `_process_job` (`server.py:502-506`). All other terminal-state paths call eviction; this one does not. Jobs cancelled during Popen initialization count against store capacity without triggering compaction. — relates to: WI-048
+
+- [code-reviewer] No pre-flight check for missing `ANTHROPIC_API_KEY` in container mode — empty key is silently passed into containers, causing opaque auth failures inside the container. — relates to: WI-048
+
+- [gap-analyst] No integration test exercises the container code path through the HTTP API (`mcp/test_integration.py`). — relates to: WI-049
+
+- [spec-reviewer] architecture.md §9 does not document `ANTHROPIC_API_KEY` passthrough into containers. Necessary for correct operation but omitted from the container lifecycle description. — relates to: WI-050
+
+- [spec-reviewer] Six undocumented `spawn_session` additions (U1–U6 from cycle 7) remain absent from architecture spec: `max_depth`, `output_format`, `team_name`, `exec_instructions`, `OUTPOST_LOG_FILE`, `OUTPOST_ROLES_FILE`. Carried forward. — relates to: cross-cutting (documentation)
+
+## Suggestions
+
+- [code-reviewer] Add `--read-only` to the container command with a writable `/workspace` bind mount overlay to prevent writes outside the workspace directory.
+- [code-reviewer] Consider `--network none` for read-only role jobs (e.g., `reviewer` role) to eliminate a class of exfiltration risk.
+- [spec-reviewer] Correct WI-047 criterion text in work-items.yaml: "created via useradd" should reflect that `usermod` on the base image's existing user is the correct technique for `node:*` base images.
+
+## Findings Requiring User Input
+
+None — all findings can be resolved from existing context.
+
+The two significant code findings (S1 API key exposure, S2 missing cancel test) have clear, mechanical fixes. The two documentation gaps (remote-worker README, root README) are one-file additions. The decision to fix now vs. defer is up to the user.
+
+## Proposed Refinement Plan
+
+The review identified 0 critical and 4 significant findings. A refinement cycle is recommended to address them.
+
+**Scope for `/ideate:refine`:**
+
+1. **Fix `ANTHROPIC_API_KEY` in process table** (S1) — `mcp/remote-worker/server.py:415`: change `-e ANTHROPIC_API_KEY={value}` to `-e ANTHROPIC_API_KEY`. One-line fix, high security impact.
+
+2. **Add `docker stop` cancel-path test** (S2) — `mcp/remote-worker/test_server.py`: async test that sets `record.container_name`, patches `subprocess.run`, calls `DELETE /jobs/{id}`, asserts `docker stop` was called correctly.
+
+3. **Update remote-worker README** (DG1) — `mcp/remote-worker/README.md`: add 4 new env vars, Docker prerequisite, `ANTHROPIC_API_KEY` forwarding note.
+
+4. **Update root README** (DG2) — `README.md`: add container sandboxing deployment section referencing Dockerfile and `OUTPOST_AGENT_IMAGE`.
+
+Optionally in the same cycle:
+- Fix `_evict_terminal_jobs_locked` missing call (M1) — `server.py:505`: one-line addition.
+- Add `ANTHROPIC_API_KEY` pre-flight check (M2) — validate at job submission time when container mode is active.
+- Add `ANTHROPIC_API_KEY` passthrough to architecture §9 (U7).
+
+Estimated scope: 3–5 small work items, no architectural changes required.

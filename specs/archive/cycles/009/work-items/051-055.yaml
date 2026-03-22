@@ -1,0 +1,106 @@
+  '051':
+    title: Fix server.py security, correctness, and async issues
+    complexity: easy
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - In _build_container_cmd, the ANTHROPIC_API_KEY argument is passed as "-e",
+      "ANTHROPIC_API_KEY" (name only, no ={value}), so Docker inherits the variable
+      from the host process environment without embedding the secret in the command list
+    - In create_job, before creating the JobRecord, a guard checks if _agent_image
+      is set and os.environ.get("ANTHROPIC_API_KEY") is falsy; if so, raises
+      HTTPException(status_code=500, detail="ANTHROPIC_API_KEY is not set in the
+      worker environment. Container mode requires ANTHROPIC_API_KEY to authenticate
+      the claude CLI inside the container.")
+    - In cancel_job, the subprocess.run(["docker", "stop", container_name]) call
+      is wrapped as await asyncio.to_thread(subprocess.run, ["docker", "stop",
+      container_name], timeout=15, capture_output=True) so it does not block the
+      async event loop
+    - In _process_job, the result is None branch (cancel-while-starting sentinel)
+      calls _evict_terminal_jobs_locked() inside the job_store_lock block after
+      setting record.duration_ms, consistent with all other terminal-state branches
+    - All existing remote-worker tests pass
+    - The ANTHROPIC_API_KEY change does not break any existing tests (no existing
+      test asserts the value is embedded in the command)
+  '052':
+    title: Document container mode in remote-worker README
+    complexity: easy
+    scope:
+    - mcp/remote-worker/README.md (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - The Prerequisites section includes Docker CE or Docker Engine as a prerequisite
+      for container mode, with a note that it is only required when OUTPOST_AGENT_IMAGE
+      is set
+    - The Environment Variables table includes four new rows for OUTPOST_AGENT_IMAGE
+      (default empty string, enables container mode when set to a Docker image name),
+      OUTPOST_CONTAINER_RUNTIME (default empty string, optional runtime override e.g.
+      runsc for gVisor), OUTPOST_CONTAINER_MEMORY (default 4g, memory limit for job
+      containers), OUTPOST_CONTAINER_CPUS (default 2, CPU limit for job containers)
+    - A new Container Mode section (placed before API Reference) explains that when
+      OUTPOST_AGENT_IMAGE is set each job runs in an ephemeral Docker container, the
+      working_dir is bind-mounted to /workspace, and ANTHROPIC_API_KEY must be set in
+      the server environment because it is forwarded into the container
+    - No other content in the file is changed
+  '053':
+    title: Add container sandboxing section to root README
+    complexity: easy
+    scope:
+    - README.md (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - The root README includes a new Container Sandboxing subsection under the Remote
+      Dispatch feature or a new Remote Worker Deployment section that mentions Docker
+      sandboxing as a deployment option
+    - The section names OUTPOST_AGENT_IMAGE as the activation variable, references
+      mcp/remote-worker/Dockerfile as the image source, and notes that ANTHROPIC_API_KEY
+      must be set in the worker environment
+    - The section mentions that container mode is optional; omitting OUTPOST_AGENT_IMAGE
+      keeps the existing direct subprocess behavior
+    - No other content in the file is changed
+  '054':
+    title: Add docker stop cancel path test
+    complexity: easy
+    scope:
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - A new async test verifies that when cancel_job is called for a running job with
+      container_name set, subprocess.run is called with ["docker", "stop", "job-{job_id}"]
+      as the first positional argument
+    - The test sets up a JobRecord with status "running" and container_name equal to
+      f"job-{job_id}" in the job_store, and sets record.process to a mock object with
+      terminate() and wait() methods that do not raise
+    - The test uses monkeypatch or direct attribute assignment on the worker module's
+      subprocess to capture the docker stop call
+    - The test sends DELETE /jobs/{job_id} via the TestClient and asserts HTTP 204
+    - The test asserts subprocess.run was called with a command list whose first element
+      is "docker" and that contains "stop" and f"job-{job_id}"
+    - All existing remote-worker tests pass
+  '055':
+    title: Add container mode integration test
+    complexity: easy
+    scope:
+    - mcp/test_integration.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - A new async integration test sets worker_mod._agent_image to a non-empty string
+      (e.g. "outpost-agent:test") before submitting a job through the worker processing loop
+    - The test monkeypatches subprocess.Popen (on the worker_mod module) to capture the
+      command passed to it and return a mock process that simulates successful execution
+      (returncode=0, stdout with valid content, stderr empty)
+    - The test starts a _worker coroutine explicitly, puts a job on the queue, and polls
+      until the job reaches a terminal state (same pattern as the existing lifecycle test)
+    - The test asserts that the command captured by the Popen mock starts with "docker"
+      (not "claude"), confirming container mode was activated
+    - The test asserts that the job reaches "completed" status, confirming the full
+      processing path works end-to-end with a mocked container execution
+    - worker_mod._agent_image is reset to "" after the test (in a finally block or
+      using monkeypatch so cleanup is automatic)
+    - All existing integration tests pass

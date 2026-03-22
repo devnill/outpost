@@ -1,6 +1,6 @@
 # Domain Registry
 
-current_cycle: 7
+current_cycle: 9
 
 ## Domains
 
@@ -9,7 +9,7 @@ Local subprocess session management — spawning, resource limits (concurrency, 
 Files: domains/session-lifecycle/policies.md, decisions.md, questions.md
 
 ### remote-dispatch
-Remote worker daemon and HTTP REST API — job submission, job lifecycle states, worker pool management, API key authentication, working directory validation, and git diff capture.
+Remote worker daemon and HTTP REST API — job submission, job lifecycle states, worker pool management, API key authentication, working directory validation, git diff capture, and container sandboxing.
 Files: domains/remote-dispatch/policies.md, decisions.md, questions.md
 
 ### observability
@@ -29,4 +29,6 @@ Files: domains/observability/policies.md, decisions.md, questions.md
 - **Architecture residual inaccuracies (cycle 4)**: After WI-016, the architecture document still contains an incorrect `cancelled` state description (OQ-004), a non-existent `OUTPOST_TIMEOUT` env var (OQ-005), and undocumented `IDEATE_WORKER_HOST` env var. Source: archive/cycles/004/spec-adherence.md (MA2, MA3), archive/cycles/004/code-quality.md (Suggestion 3). **Partially resolved in cycle 5** — WI-023 corrected the job-states table and OUTPOST_TIMEOUT annotation. New gaps: cancel_remote_job absent from architecture tool list (OQ-014), max_jobs absent from health schema (OQ-016). **RESOLVED in cycle 6** — WI-026 added cancel_remote_job and max_jobs to architecture. One minor residual: IDEATE_WORKER_MAX_JOBS absent from architecture Section 8 env var table (OQ-020).
 - **Documentation sweep gap pattern (cycle 5)**: Cycle 5 work items correctly implemented all code changes but documentation was not fully swept to match. Three documentation gaps remained: cancel_remote_job absent from architecture/README tool lists, IDEATE_WORKER_MAX_JOBS absent from README env var table, README token_usage contract contradicts implementation. **RESOLVED in cycle 6** — WI-026 closed all three gaps. README and architecture now consistent with implementation.
 - **Root README documentation gaps (cycle 7)**: Three minor documentation gaps at the project entry point identified by capstone review: `cancel_remote_job` absent from root README tool list (OQ-027), `CLAUDE.md` references non-existent `requirements.txt` (OQ-026), root README Configuration section omits most environment variables with no cross-reference to component READMEs (OQ-028). All are one-line fixes. Source: archive/cycles/007/gap-analysis.md (MR1, MI3, MR3), archive/cycles/007/decision-log.md (OQ-026, OQ-027, OQ-028).
-- **Undocumented spawn_session additions (cycle 7)**: Six additions to `spawn_session` beyond architecture spec identified: `max_depth`, `output_format`, `team_name`, `exec_instructions` inputs; `OUTPOST_LOG_FILE` JSONL logging; `OUTPOST_ROLES_FILE` user role override. None harmful; several should be added to architecture sections 5 and 8. Source: archive/cycles/007/spec-adherence.md (U1–U6).
+- **Undocumented spawn_session additions (cycle 7)**: Six additions to `spawn_session` beyond architecture spec identified: `max_depth`, `output_format`, `team_name`, `exec_instructions` inputs; `OUTPOST_LOG_FILE` JSONL logging; `OUTPOST_ROLES_FILE` user role override. None harmful; several should be added to architecture sections 5 and 8. Source: archive/cycles/007/spec-adherence.md (U1–U6). **Carried forward in cycle 8** — spec-reviewer confirmed U1–U4, U6 still absent from architecture. **Still carried forward in cycle 9** — U1–U7 remain; U8 added (HTTP 500 pre-flight check absent from architecture Section 7 error table).
+- **Documentation-follows-implementation pattern (cycles 4, 5, 7, 8, 9)**: Recurring pattern where implementation work items are completed but user-facing documentation is not updated in the same cycle. Cycle 8: architecture updated but READMEs omitted container mode docs. Cycle 9: closed cycle 8 README gaps (WI-052, WI-053) but opened new minor gaps (OQ-037 POST /jobs API table missing HTTP 500, OQ-039 architecture Section 7 error table incomplete). Source: archive/cycles/008/decision-log.md, archive/cycles/009/decision-log.md (Cross-Cycle Patterns).
+- **Security-correctness lag pattern (cycles 8-9)**: Cycle 8 introduced container sandboxing but shipped with ANTHROPIC_API_KEY embedded in the process command line. The security fix required a dedicated follow-up cycle (cycle 9, WI-051). Consistent with the partial-fix regression pattern — security-sensitive details are not fully reviewed until the capstone review. Source: archive/cycles/009/decision-log.md (Cross-Cycle Patterns).

@@ -63,6 +63,33 @@ For the full list of environment variables, see:
 - `mcp/session-spawner/README.md` — session-spawner configuration
 - `mcp/remote-worker/README.md` — remote-worker configuration
 
+## Remote Worker Deployment
+
+Deploy `mcp/remote-worker` on each machine you want to use for remote job execution.
+
+### Container Sandboxing (Recommended)
+
+For production deployments, run each job inside an ephemeral Docker container. This isolates the agent from the host machine and allows safe use of `--permission-mode dangerouslySkipPermissions` without interactive permission prompts.
+
+**Build the agent image**:
+
+```bash
+docker build -t outpost-agent:latest mcp/remote-worker/  # uses mcp/remote-worker/Dockerfile
+```
+
+**Start the worker with container mode enabled**:
+
+```bash
+export ANTHROPIC_API_KEY=your-anthropic-key
+export IDEATE_WORKER_API_KEY=your-secret-key
+export OUTPOST_AGENT_IMAGE=outpost-agent:latest
+outpost-worker
+```
+
+When `OUTPOST_AGENT_IMAGE` is set, each job runs in its own container with security constraints (`--cap-drop ALL`, memory/CPU limits, non-root user). When not set, jobs run directly as subprocesses (the original behavior, unchanged).
+
+See `mcp/remote-worker/README.md` for all container configuration options.
+
 ## Architecture
 
 Outpost is designed as a thin orchestration layer:

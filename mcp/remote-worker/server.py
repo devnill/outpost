@@ -29,10 +29,18 @@ from pydantic import BaseModel
 logger = logging.getLogger("outpost-remote-worker")
 
 VERSION = "0.1.0"
+
+# Container execution configuration
+_agent_image = os.environ.get("OUTPOST_AGENT_IMAGE", "")
+_container_runtime = os.environ.get("OUTPOST_CONTAINER_RUNTIME", "")
+_container_memory = os.environ.get("OUTPOST_CONTAINER_MEMORY", "4g")
+_container_cpus = os.environ.get("OUTPOST_CONTAINER_CPUS", "2")
 DEFAULT_MAX_CONCURRENCY = 3
 DEFAULT_PORT = 7432
 DEFAULT_TIMEOUT = 600
 MAX_PROMPT_BYTES = 100_000
+
+_FILE_NOT_FOUND = object()  # sentinel for FileNotFoundError from _run_claude_job
 
 
 # --- Models ---
@@ -70,13 +78,13 @@ class JobRecord:
         self.error: str | None = None
         self.duration_ms: int | None = None
         self.process: subprocess.Popen | None = None
+        self.container_name: str | None = None
 
 
 # --- State ---
 
 job_store: dict[str, JobRecord] = {}
 job_store_lock = asyncio.Lock()
-job_queue: asyncio.Queue[str] = asyncio.Queue()
 
 
 # --- App ---
@@ -84,12 +92,13 @@ job_queue: asyncio.Queue[str] = asyncio.Queue()
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    global _max_concurrency, _max_jobs
+    global _max_concurrency, _max_jobs, job_queue
     _max_concurrency = _get_max_concurrency()
     try:
         _max_jobs = int(os.environ.get("IDEATE_WORKER_MAX_JOBS", "1000"))
     except ValueError:
         _max_jobs = 1000
+    job_queue = asyncio.Queue(maxsize=_max_jobs)
     if not _get_api_key():
         logger.warning(
             "IDEATE_WORKER_API_KEY is not set — all requests will be rejected with HTTP 401"
@@ -125,6 +134,8 @@ def _get_base_dir() -> Path | None:
 # Resolved at startup
 _max_concurrency: int = DEFAULT_MAX_CONCURRENCY
 _max_jobs: int = 1000
+
+job_queue: asyncio.Queue[str] = asyncio.Queue(maxsize=_max_jobs)
 
 
 # --- Auth middleware ---
@@ -196,13 +207,28 @@ async def create_job(request: JobRequest):
                 detail=f"working_dir is outside allowed base directory {base_dir}",
             )
 
+    # Validate ANTHROPIC_API_KEY is present when container mode is active
+    if _agent_image and not os.environ.get("ANTHROPIC_API_KEY"):
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "ANTHROPIC_API_KEY is not set in the worker environment. "
+                "Container mode requires ANTHROPIC_API_KEY to authenticate "
+                "the claude CLI inside the container."
+            ),
+        )
+
     job_id = str(uuid.uuid4())
     record = JobRecord(job_id, request)
 
     async with job_store_lock:
         job_store[job_id] = record
-
-    await job_queue.put(job_id)
+    try:
+        job_queue.put_nowait(job_id)
+    except asyncio.QueueFull:
+        async with job_store_lock:
+            del job_store[job_id]
+        raise HTTPException(status_code=429, detail="Job queue is full. Try again later.")
 
     return {"job_id": job_id, "status": "queued"}
 
@@ -218,6 +244,10 @@ async def list_jobs():
                 "role": record.role,
                 "created_at": record.created_at,
             }
+            if record.started_at is not None:
+                entry["started_at"] = record.started_at
+            if record.completed_at is not None:
+                entry["completed_at"] = record.completed_at
             if record.duration_ms is not None:
                 entry["duration_ms"] = record.duration_ms
             result.append(entry)
@@ -259,6 +289,7 @@ async def get_job(job_id: str):
 @app.delete("/jobs/{job_id}", status_code=204)
 async def cancel_job(job_id: str):
     proc = None
+    container_name = None
     async with job_store_lock:
         record = job_store.get(job_id)
         if not record:
@@ -271,6 +302,7 @@ async def cancel_job(job_id: str):
 
         if record.status == "running":
             proc = record.process
+            container_name = record.container_name
             record.status = "cancelled"
             record.completed_at = datetime.datetime.now(
                 datetime.timezone.utc
@@ -283,8 +315,21 @@ async def cancel_job(job_id: str):
                 detail=f"Cannot cancel job with status '{record.status}'",
             )
 
-    # Signal the process after releasing the lock
-    if proc is not None:
+    # Stop the container if running in container mode
+    if container_name:
+        try:
+            await asyncio.to_thread(
+                subprocess.run,
+                ["docker", "stop", container_name],
+                timeout=15,
+                capture_output=True,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            pass
+
+    # Signal the process after releasing the lock.
+    # In container mode, docker stop already caused docker run to exit — skip terminate/wait.
+    if proc is not None and not container_name:
         try:
             proc.terminate()
         except (ProcessLookupError, OSError):  # process already exited; ProcessLookupError is a subclass of OSError
@@ -343,29 +388,67 @@ def _capture_git_diff(working_dir: str) -> str | None:
         if proc.returncode == 0:
             return stdout
         return None
-    except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()  # drain pipes and reap
+        return None
+    except (FileNotFoundError, OSError):
         return None
 
 
-def _run_claude_job(record: JobRecord) -> tuple[str, int, str | None]:
-    """
-    Run claude CLI synchronously. Returns (output, exit_code, error).
-    Invokes `claude --print` with JSON output, setting both cwd= on the subprocess
-    and --cwd in the CLI arguments.
-    """
+def _build_claude_cmd(record: JobRecord) -> list[str]:
+    """Build a direct claude CLI invocation command."""
     cmd = [
-        "claude",
-        "--print",
-        "--output-format", "json",
+        "claude", "--print", "--output-format", "json",
         "--permission-mode", record.permission_mode,
         "--max-turns", str(record.max_turns),
         "--cwd", record.working_dir,
     ]
-
     if record.allowed_tools:
         cmd.extend(["--allowedTools", ",".join(record.allowed_tools)])
-
     cmd.append(record.prompt)
+    return cmd
+
+
+def _build_container_cmd(record: JobRecord) -> list[str]:
+    """Build a docker run command that invokes claude inside the agent container."""
+    cmd = ["docker", "run", "--rm"]
+    if _container_runtime:
+        cmd.extend(["--runtime", _container_runtime])
+    cmd.extend([
+        "--name", f"job-{record.job_id}",
+        "--user", "1000:1000",
+        "--cap-drop", "ALL",
+        "--security-opt", "no-new-privileges",
+        "--memory", _container_memory,
+        "--memory-swap", _container_memory,
+        "--cpus", _container_cpus,
+        "--pids-limit", "512",
+        "-v", f"{record.working_dir}:/workspace",
+        "-e", "ANTHROPIC_API_KEY",
+        _agent_image,
+        "--print", "--output-format", "json",
+        "--permission-mode", "dangerouslySkipPermissions",
+        "--max-turns", str(record.max_turns),
+        "--cwd", "/workspace",
+    ])
+    if record.allowed_tools:
+        cmd.extend(["--allowedTools", ",".join(record.allowed_tools)])
+    cmd.append(record.prompt)
+    return cmd
+
+
+def _run_claude_job(record: JobRecord) -> tuple[str, int, str | None] | tuple[object, str] | None:
+    """
+    Run claude CLI synchronously. Returns (output, exit_code, error).
+    Invokes `claude --print` with JSON output, setting both cwd= on the subprocess
+    and --cwd in the CLI arguments. When OUTPOST_AGENT_IMAGE is set, runs inside
+    a Docker container instead of invoking claude directly.
+    """
+    if _agent_image:
+        cmd = _build_container_cmd(record)
+    else:
+        cmd = _build_claude_cmd(record)
 
     try:
         try:
@@ -377,11 +460,17 @@ def _run_claude_job(record: JobRecord) -> tuple[str, int, str | None]:
                 cwd=record.working_dir,
             )
         except FileNotFoundError:
-            record.status = "failed"
-            record.exit_code = 1
-            record.error = "claude CLI not found on PATH. Ensure Claude Code is installed and the 'claude' binary is accessible in the server process environment."
-            record.completed_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
-            return
+            if _agent_image:
+                msg = (
+                    "docker not found on PATH. Ensure Docker is installed and the "
+                    "'docker' binary is accessible in the server process environment."
+                )
+            else:
+                msg = (
+                    "claude CLI not found on PATH. Ensure Claude Code is installed and the "
+                    "'claude' binary is accessible in the server process environment."
+                )
+            return (_FILE_NOT_FOUND, msg)
         # Guard: if the job was cancelled while Popen was initializing, kill and abort
         if record.status == "cancelled":
             try:
@@ -390,19 +479,25 @@ def _run_claude_job(record: JobRecord) -> tuple[str, int, str | None]:
                 pass
             return None
         record.process = proc  # set before communicate() so cancel can signal it
+        if _agent_image:
+            record.container_name = f"job-{record.job_id}"
 
         try:
             stdout, stderr = proc.communicate(timeout=record.timeout)
         except subprocess.TimeoutExpired:
             proc.kill()
-            stdout_bytes, stderr_bytes = proc.communicate()
-            partial_stdout = stdout_bytes if isinstance(stdout_bytes, str) else stdout_bytes.decode("utf-8", errors="ignore")
+            try:
+                stdout_data, stderr_data = proc.communicate(timeout=10)
+            except subprocess.TimeoutExpired:
+                stdout_data, stderr_data = "", ""
+            partial_stdout = stdout_data if isinstance(stdout_data, str) else stdout_data.decode("utf-8", errors="ignore")
             return partial_stdout, -1, f"Job timed out after {record.timeout}s"
 
         error = stderr if proc.returncode != 0 else None
         return stdout, proc.returncode, error
     finally:
         record.process = None  # clear after completion
+        record.container_name = None  # clear container name after completion
 
 
 async def _process_job(record: JobRecord) -> None:
@@ -413,17 +508,34 @@ async def _process_job(record: JobRecord) -> None:
     result = await asyncio.to_thread(_run_claude_job, record)
     duration_ms = int((time.monotonic() - start_time) * 1000)
 
-    # _run_claude_job returns None when it has already updated record directly (e.g. FileNotFoundError,
-    # or cancel-while-starting race). Ensure completed_at is set for all terminal paths.
+    # _run_claude_job returns:
+    #   None                        — cancel-while-starting sentinel; no further updates needed
+    #   (_FILE_NOT_FOUND, message)  — FileNotFoundError; 2-tuple with sentinel as first element
+    #   (out, code, err)            — normal completion (stdout, exit_code, stderr_or_None)
     if result is None:
+        # Cancel path: record was already marked cancelled before Popen; set duration_ms only
         async with job_store_lock:
             record.duration_ms = duration_ms
-            if record.completed_at is None:
-                record.completed_at = datetime.datetime.now(
-                    datetime.timezone.utc
-                ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
             _evict_terminal_jobs_locked()
         logger.info("Job %s %s in %dms", record.job_id, record.status, duration_ms)
+        return
+
+    # FileNotFoundError path: _run_claude_job returns (_FILE_NOT_FOUND, message) when Popen raises FileNotFoundError
+    if isinstance(result, tuple) and result[0] is _FILE_NOT_FOUND:
+        _, error = result
+        completed_at = datetime.datetime.now(
+            datetime.timezone.utc
+        ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        async with job_store_lock:
+            record.exit_code = 1
+            record.error = error
+            record.duration_ms = duration_ms
+            if record.status != "cancelled":
+                record.status = "failed"
+                record.completed_at = completed_at
+            _evict_terminal_jobs_locked()
+        binary = "docker" if _agent_image else "claude"
+        logger.info("Job %s failed (%s not found) in %dms", record.job_id, binary, duration_ms)
         return
 
     output, exit_code, error = result

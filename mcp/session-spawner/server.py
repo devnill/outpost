@@ -16,6 +16,7 @@ Safety mechanisms:
 """
 
 import asyncio
+import collections
 import datetime
 import json
 import logging
@@ -970,11 +971,9 @@ async def _handle_cancel_remote_job(arguments: dict) -> list[TextContent]:
 
     conn_timeout = aiohttp.ClientTimeout(total=30)
 
-    not_found_workers: list[str] = []
-    auth_errors: list[str] = []
-    conn_errors: list[str] = []
-
-    for w in workers_to_try:
+    async def _cancel_one(w: dict) -> dict:
+        """Cancel a job on a single worker. Returns a result dict with a _status key:
+        'cancelled', 'not_found', 'auth_error', 'conflict', 'error'."""
         try:
             async with _get_http_session().delete(
                 f"{w['url'].rstrip('/')}/jobs/{job_id}",
@@ -982,77 +981,114 @@ async def _handle_cancel_remote_job(arguments: dict) -> list[TextContent]:
                 timeout=conn_timeout,
             ) as resp:
                 if resp.status == 204:
-                    # Success — no response body on 204
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(
-                                {"job_id": job_id, "status": "cancelled", "worker_name": w["name"]}
-                            ),
-                        )
-                    ]
-                elif resp.status in (401, 403):
-                    auth_errors.append(
-                        f"Authentication failed for worker '{w['name']}' (HTTP {resp.status}). Check api_key configuration."
-                    )
-                    continue
-                elif resp.status == 404:
-                    not_found_workers.append(w["name"])
-                elif resp.status == 409:
+                    return {"_status": "cancelled", "_worker": w["name"]}
+                if resp.status in (401, 403):
+                    return {
+                        "_status": "auth_error",
+                        "_worker": w["name"],
+                        "_msg": (
+                            f"Authentication failed for worker '{w['name']}' (HTTP {resp.status}). "
+                            "Check api_key configuration."
+                        ),
+                    }
+                if resp.status == 404:
+                    return {"_status": "not_found", "_worker": w["name"]}
+                if resp.status == 409:
                     body = await resp.json()
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(
-                                {
-                                    "error": body.get("detail", "HTTP 409"),
-                                    "worker_name": w["name"],
-                                }
-                            ),
-                        )
-                    ]
-                else:
-                    body = await resp.json()
-                    return [
-                        TextContent(
-                            type="text",
-                            text=json.dumps(
-                                {
-                                    "error": f"HTTP {resp.status}: {body}",
-                                    "worker_name": w["name"],
-                                }
-                            ),
-                        )
-                    ]
+                    return {
+                        "_status": "conflict",
+                        "_worker": w["name"],
+                        "_msg": body.get("detail", "HTTP 409"),
+                    }
+                body = await resp.json()
+                return {
+                    "_status": "error",
+                    "_worker": w["name"],
+                    "_msg": f"HTTP {resp.status}: {body}",
+                }
         except Exception as exc:
             logger.debug("Failed to cancel job '%s' on worker '%s': %s", job_id, w["name"], exc)
-            conn_errors.append(f"Connection error for worker '{w['name']}': {exc}")
-            continue
+            return {
+                "_status": "error",
+                "_worker": w["name"],
+                "_msg": f"Connection error for worker '{w['name']}': {exc}",
+            }
 
-    # Return auth errors if any were collected (and no success was found)
-    if auth_errors:
+    cancel_results = await asyncio.gather(*[_cancel_one(w) for w in workers_to_try])
+
+    # First pass: return first cancelled result (204 success wins)
+    for r in cancel_results:
+        if r["_status"] == "cancelled":
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {"job_id": job_id, "status": "cancelled", "worker_name": r["_worker"]}
+                    ),
+                )
+            ]
+
+    # Second pass: return conflict as-is (HTTP 409 — job is running/completed on that worker,
+    # cancel is definitively blocked; connection errors are NOT definitive and must not short-circuit)
+    for r in cancel_results:
+        if r["_status"] == "conflict" and "_msg" in r:
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps({"error": r["_msg"], "worker_name": r["_worker"]}),
+                )
+            ]
+
+    # Third pass: return auth errors (misconfiguration, important to surface)
+    for r in cancel_results:
+        if r["_status"] == "auth_error":
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps({"error": r["_msg"]}),
+                )
+            ]
+
+    # No worker reported success — job not found on any worker.
+    # Include both not-found and connection-error workers so the caller has the full picture.
+    not_found_workers = [r["_worker"] for r in cancel_results if r["_status"] == "not_found"]
+    error_workers = [r["_worker"] for r in cancel_results if r["_status"] == "error"]
+    all_workers = [r["_worker"] for r in cancel_results]
+
+    if error_workers and not not_found_workers:
+        # Only connection errors — surface them so the caller knows something went wrong
+        error_msgs = [r["_msg"] for r in cancel_results if r["_status"] == "error" and "_msg" in r]
+        combined = "; ".join(error_msgs)
         return [
             TextContent(
                 type="text",
-                text=json.dumps({"error": auth_errors[0]}),
+                text=json.dumps({"error": combined, "worker_name": error_workers[0]}),
             )
         ]
 
-    # Return connection errors if any were collected (and no success was found)
-    if conn_errors:
+    if error_workers and not_found_workers:
+        # Mixed: some workers confirmed absent, some unreachable
+        error_msgs = "; ".join(
+            r.get("_msg", f"connection error on {r['_worker']}")
+            for r in cancel_results if r["_status"] == "error"
+        )
         return [
             TextContent(
                 type="text",
-                text=json.dumps({"error": conn_errors[0]}),
+                text=json.dumps({
+                    "error": (
+                        f"Job '{job_id}' not found on workers: {not_found_workers}; "
+                        f"connection errors: {error_msgs}"
+                    )
+                }),
             )
         ]
 
-    # All workers returned 404
     return [
         TextContent(
             type="text",
             text=json.dumps(
-                {"error": f"Job '{job_id}' not found on workers: {not_found_workers}"}
+                {"error": f"Job '{job_id}' not found on workers: {all_workers}"}
             ),
         )
     ]
@@ -1192,7 +1228,7 @@ async def main():
 # even if someone imports the module without running main().
 _semaphore: asyncio.Semaphore = asyncio.Semaphore(DEFAULT_CONCURRENCY)
 _server_max_depth: int = DEFAULT_MAX_DEPTH
-_session_registry: list[dict] = []
+_session_registry: collections.deque = collections.deque(maxlen=1000)
 _roles: dict[str, dict] = {}
 _remote_workers: list[dict] = []
 _http_session: aiohttp.ClientSession = None  # type: ignore[assignment]  # initialized in main()

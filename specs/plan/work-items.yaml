@@ -241,3 +241,354 @@ items:
     - The _process_job function handles the case where a job is cancelled mid-run
       (record.process is set before communicate() is called so the cancel endpoint
       can signal it)
+  '034':
+    title: Fix _run_claude_job FileNotFoundError lock race and communicate() timeout
+    complexity: easy
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - In _run_claude_job, the FileNotFoundError handler is removed from the function
+      body; the except clause returns (None, 1, "claude CLI not found on PATH. Ensure
+      Claude Code is installed and the 'claude' binary is accessible in the server
+      process environment.") as a normal 3-tuple instead of mutating the record directly
+    - In _process_job, the result-is-None branch is updated to check whether result
+      is exactly None (cancel-while-starting sentinel) vs. being the FileNotFoundError
+      tuple; the FileNotFoundError case applies record.status="failed",
+      record.exit_code=1, record.error=<message> under job_store_lock, then sets
+      record.completed_at and duration_ms and calls _evict_terminal_jobs_locked()
+    - The TimeoutExpired handler in _run_claude_job calls proc.communicate(timeout=10)
+      on the second call (after proc.kill()); a nested try/except catches
+      subprocess.TimeoutExpired from that call and falls back to empty bytes
+    - At least one test covers the FileNotFoundError path end-to-end: Popen patched
+      to raise FileNotFoundError; asserts job.status=="failed", job.exit_code==1,
+      job.error contains "claude", job.completed_at is not None
+    - All existing remote-worker tests pass
+  '035':
+    title: Cap _session_registry with bounded deque
+    complexity: easy
+    scope:
+    - mcp/session-spawner/server.py (modify)
+    - mcp/session-spawner/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - _session_registry is changed from list to collections.deque(maxlen=1000)
+    - All append and iteration operations on _session_registry are updated to work
+      correctly with a deque (append, iteration in _print_status_table, reset in
+      _reset_globals if present)
+    - OUTPOST_MAX_REGISTRY_SIZE env var (or equivalent) may optionally be used to
+      configure the bound; if not configurable, the hard-coded 1000 is acceptable
+    - _print_status_table continues to produce the same output format regardless of
+      whether the deque is full
+    - All existing session-spawner tests pass
+  '036':
+    title: Fix cancel_remote_job sequential fan-out
+    complexity: easy
+    scope:
+    - mcp/session-spawner/server.py (modify)
+    - mcp/session-spawner/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - _handle_cancel_remote_job fan-out when worker_name is not specified uses
+      asyncio.gather instead of a sequential for-loop, mirroring the pattern used
+      by _handle_poll_remote_job
+    - A helper coroutine (e.g., _cancel_one) is introduced to encapsulate the per-worker
+      cancel HTTP call, handling 204 (success), 404 (not found), 401/403 (auth error),
+      and other errors in the same structured way as _poll_one
+    - The first 204 response encountered in the gather results causes the tool to
+      return success immediately; if no 204 is found, the existing error priority
+      logic is applied (auth error > not found)
+    - All existing cancel_remote_job tests pass without modification
+    - At least one test verifies that cancel fan-out is concurrent (e.g., both workers
+      receive a cancel request when worker_name is not specified, regardless of which
+      one returns 204 first)
+  '037':
+    title: Fix _capture_git_diff subprocess leak on timeout
+    complexity: easy
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - In _capture_git_diff, the subprocess.TimeoutExpired handler calls proc.kill()
+      followed by proc.communicate() (with no timeout needed — process is already
+      killed) before returning None; this prevents the orphaned process from accumulating
+      open pipe handles
+    - The existing FileNotFoundError/OSError handler at the same level is preserved
+      unchanged
+    - At least one test covers the timeout path in _capture_git_diff: patches
+      proc.communicate to raise subprocess.TimeoutExpired on the first call, then
+      asserts proc.kill() was called and the function returns None
+    - All existing remote-worker tests pass
+  '038':
+    title: Bound job_queue with maxsize and HTTP 429 back-pressure
+    complexity: easy
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - job_queue is declared as asyncio.Queue(maxsize=_max_jobs) instead of asyncio.Queue()
+      so the queue size is bounded by the same limit as the job store
+    - The submit_job endpoint (POST /jobs) checks asyncio.Queue.full() before calling
+      put_nowait; if the queue is full, it returns HTTP 429 with a JSON body
+      {"detail": "Job queue is full. Try again later."} instead of accepting the job
+    - The existing 201 Created response path is unchanged for the non-full case
+    - At least one test verifies that a POST /jobs request returns 429 when the queue
+      is at capacity (patch job_queue to have maxsize=0 or fill it to capacity)
+    - All existing remote-worker tests pass
+  '039':
+    title: Fix job_queue TOCTOU race with put_nowait
+    complexity: easy
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - In the submit_job endpoint, remove the separate job_queue.full() guard; replace
+      await job_queue.put(job_id) with job_queue.put_nowait(job_id) wrapped in
+      try/except asyncio.QueueFull that raises HTTPException(status_code=429,
+      detail="Job queue is full. Try again later.")
+    - The job_store record is NOT written before the put_nowait attempt; if QueueFull
+      is raised, no orphaned job_store entry is left
+    - The existing test_create_job_queue_full_returns_429 test passes without
+      modification (or is updated only to reflect the new atomic implementation)
+    - All existing remote-worker tests pass
+  '040':
+    title: Fix _handle_cancel_remote_job connection error masking
+    complexity: easy
+    scope:
+    - mcp/session-spawner/server.py (modify)
+    - mcp/session-spawner/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - In _handle_cancel_remote_job, the pass that previously returned on "conflict"
+      or "error" results is split into two separate passes; the conflict pass returns
+      immediately only on _status == "conflict" (HTTP 409); the error/connection-failure
+      pass does NOT return immediately but collects errors for the final fallback
+    - The final fallback message includes connection error details alongside
+      not-found workers so the caller can distinguish network failures from
+      confirmed absences
+    - At least one test verifies that when worker A has a connection error and worker
+      B returns 404, the tool returns a "not found" result (not "connection error"),
+      because the job was confirmed absent on B
+    - All existing cancel_remote_job tests pass
+  '041':
+    title: Replace FileNotFoundError sentinel with dedicated type
+    complexity: easy
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - A module-level sentinel (e.g., _FILE_NOT_FOUND = object()) or a named dataclass
+      is introduced; _run_claude_job returns this sentinel on FileNotFoundError instead
+      of (None, 1, message)
+    - _process_job detects the FileNotFoundError condition by identity check
+      (result is _FILE_NOT_FOUND) or isinstance, not by checking output is None
+      and exit_code == 1
+    - A legitimate zero-stdout exit-code-1 result from claude no longer routes into
+      the FileNotFoundError branch
+    - The existing test for the FileNotFoundError path passes (updated as needed to
+      use the new detection logic)
+    - All existing remote-worker tests pass
+  '042':
+    title: Add subprocess integration test for running job lifecycle
+    complexity: medium
+    scope:
+    - mcp/test_integration.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - mcp/test_integration.py contains at least one test that starts the remote-worker
+      with worker coroutines active (lifespan enabled or workers started explicitly),
+      submits a job using a trivial real subprocess command (e.g., a mock claude
+      binary that is just a shell script or python -c that prints output and exits),
+      and polls until the job reaches "completed" or "failed" status
+    - The test verifies that after reaching a terminal state the job record has
+      non-None output, non-None exit_code, non-None completed_at, and non-None
+      duration_ms
+    - The test uses asyncio.wait_for or a polling loop with a timeout to avoid
+      hanging indefinitely
+    - All existing integration tests continue to pass
+  '043':
+    title: Fix list_jobs missing timestamp fields and submit_job store ordering (NG2, NG4)
+    complexity: easy
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: ['044']
+    criteria:
+    - In list_jobs(), each entry includes started_at (when not None) and completed_at
+      (when not None) in addition to the existing job_id, status, role, created_at,
+      and duration_ms fields
+    - In create_job(), the job_store insertion (async with job_store_lock: job_store[job_id]
+      = record) occurs BEFORE job_queue.put_nowait(job_id); if put_nowait raises
+      asyncio.QueueFull, the store entry is rolled back (deleted under lock) before
+      raising HTTPException 429
+    - At least one test verifies that a completed job's started_at and completed_at
+      appear in the GET /jobs list response
+    - At least one test verifies that a running job's started_at appears in the list
+      response but completed_at is absent
+    - The existing test_create_job_queue_full_returns_429 continues to pass
+    - All existing remote-worker tests pass
+  '044':
+    title: Add remote-worker cancel path tests (CF2, CF3, CF5)
+    complexity: easy
+    scope:
+    - mcp/remote-worker/test_server.py (modify)
+    depends: ['043']
+    blocks: []
+    criteria:
+    - A test covers CF2: manually enqueue a job_id whose record has status "cancelled"
+      (simulating cancel-while-queued), then call _worker(0) with a task and allow
+      one iteration; verify _process_job is NOT called (the worker skips the job)
+      and the job remains in the store with status "cancelled"
+    - A test covers CF3: call _process_job directly with a job record whose _run_claude_job
+      is patched to return None (cancel-while-starting sentinel); verify that only
+      record.duration_ms is set and record.status remains "cancelled" (not "completed"
+      or "failed"), and record.completed_at is not set by _process_job
+    - A test covers CF5: call cancel_job on a running job whose mock process.terminate()
+      succeeds but process.wait() (via asyncio.to_thread) does not return within 2s
+      (mock asyncio.wait_for to raise asyncio.TimeoutError); verify proc.kill() is
+      called after the timeout
+    - All existing remote-worker tests pass
+  '045':
+    title: Add session-spawner tests for NC1, NC2, and CF7
+    complexity: easy
+    scope:
+    - mcp/session-spawner/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - A test covers NC1: call _handle_spawn_remote_session with _remote_workers
+      configured but all health checks returning non-"ok" status (mock _fetch_worker_health
+      to return {"status": "unreachable", ...} for all workers); verify the response
+      contains an error field with "unreachable" or similar text
+    - A test covers NC2: call _handle_cancel_remote_job with two configured workers;
+      mock _cancel_one so worker A returns {"_status": "error", ...} (connection error)
+      and worker B returns {"_status": "not_found"}; verify the response contains
+      error text that includes both the not-found and connection-error details
+    - A test covers CF7: call list_tools() (or spawner.list_tools()) and verify that
+      each tool's inputSchema contains a "required" key; specifically verify that
+      spawn_session requires ["prompt", "working_dir"], spawn_remote_session requires
+      ["prompt", "working_dir"], poll_remote_job requires ["job_id"], and
+      cancel_remote_job requires ["job_id"]
+    - All existing session-spawner tests pass
+  '046':
+    title: Add auth coverage to integration test flows (NG3)
+    complexity: easy
+    scope:
+    - mcp/test_integration.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - A test verifies that when the spawner's configured api_key does not match the
+      worker's expected key, _handle_spawn_remote_session returns a response containing
+      an auth error (not a 201); set up the worker fixture with key "server-key" and
+      configure the spawner worker entry with api_key "wrong-key", then call
+      _handle_spawn_remote_session and assert the result contains "auth" or "401" or
+      "Invalid" in the error field
+    - A test verifies that when the api_key is correct, the MCP spawn flow succeeds
+      and returns a job_id (complements the existing direct-HTTP tests by exercising
+      the MCP handler path end-to-end including auth header forwarding)
+    - All existing integration tests continue to pass
+  '047':
+    title: Dockerfile for outpost agent container image
+    complexity: easy
+    scope:
+    - mcp/remote-worker/Dockerfile (create)
+    depends: []
+    blocks: []
+    criteria:
+    - Dockerfile exists at mcp/remote-worker/Dockerfile
+    - Base image is node:20-bookworm-slim
+    - apt-get installs git and ca-certificates (minimal runtime tools); package list cache is cleared after install
+    - Claude Code CLI is installed globally via npm install -g @anthropic-ai/claude-code
+    - A non-root user named agent (uid 1000, gid 1000) is created via useradd
+    - /workspace directory is created and owned by agent:agent
+    - USER directive sets the active user to agent
+    - WORKDIR is /workspace
+    - docker build -t outpost-agent:latest mcp/remote-worker/ succeeds without build errors
+  '048':
+    title: Containerize job execution in _run_claude_job
+    complexity: medium
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    depends: []
+    blocks: ['049']
+    criteria:
+    - A new optional field container_name (str | None, default None) is added to JobRecord
+    - When OUTPOST_AGENT_IMAGE env var is set, _run_claude_job builds a docker run command
+      instead of a direct claude invocation
+    - The docker run command includes all of -- --rm, --name job-{job_id}, --user 1000:1000,
+      --cap-drop ALL, --security-opt no-new-privileges, --memory {OUTPOST_CONTAINER_MEMORY},
+      --memory-swap {OUTPOST_CONTAINER_MEMORY}, --cpus {OUTPOST_CONTAINER_CPUS},
+      --pids-limit 512, -v {working_dir}:/workspace, -e ANTHROPIC_API_KEY={key}
+    - When OUTPOST_CONTAINER_RUNTIME is set (e.g. runsc for gVisor), --runtime {value}
+      is added to the docker run command
+    - Inside the container, claude is invoked with --cwd /workspace and
+      --permission-mode dangerouslySkipPermissions (overrides record.permission_mode)
+    - record.container_name is set to job-{job_id} before Popen is called when in
+      container mode, and cleared to None after the container exits
+    - When OUTPOST_AGENT_IMAGE is not set, _run_claude_job behaves identically to
+      before this change (backward-compatible fallback)
+    - _capture_git_diff is unchanged and runs against record.working_dir on the host
+      after container exit (bind mount preserves all writes)
+    - New module-level constants are added for OUTPOST_CONTAINER_MEMORY (default 4g),
+      OUTPOST_CONTAINER_CPUS (default 2), and OUTPOST_AGENT_IMAGE (default empty)
+    - All existing remote-worker tests pass
+  '049':
+    title: Tests for containerized job execution
+    complexity: easy
+    scope:
+    - mcp/remote-worker/test_server.py (modify)
+    depends: ['048']
+    blocks: []
+    criteria:
+    - A test verifies that when OUTPOST_AGENT_IMAGE is set, the command passed to
+      subprocess.Popen starts with docker and includes run (not claude as the first element)
+    - A test verifies the container invocation includes --cap-drop ALL and
+      --security-opt no-new-privileges
+    - A test verifies the container invocation includes -v {working_dir}:/workspace
+      as a bind mount argument
+    - A test verifies the container invocation uses --permission-mode
+      dangerouslySkipPermissions regardless of the value in record.permission_mode
+    - A test verifies that when OUTPOST_AGENT_IMAGE is NOT set, the command passed
+      to subprocess.Popen starts with claude (backward compat)
+    - A test verifies that when OUTPOST_CONTAINER_RUNTIME is set to runsc, the
+      container invocation includes --runtime runsc
+    - All existing remote-worker tests pass
+  '050':
+    title: Update architecture documentation for container sandboxing
+    complexity: easy
+    scope:
+    - specs/plan/architecture.md (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - Section 2 Remote Job Dispatch data flow diagram is updated to show that the
+      remote-worker spawns docker run wrapping the claude process (not a bare subprocess)
+    - A new section is added to architecture.md describing the container sandboxing
+      model -- per-job ephemeral container, security flags applied, working directory
+      bind mount, ANTHROPIC_API_KEY injection, dangerouslySkipPermissions inside container
+    - Section 7 Remote Worker Errors table includes a row for OOM inside container
+      (exit code 137) resulting in job marked failed
+    - Section 8 env vars table includes rows for OUTPOST_AGENT_IMAGE (remote-worker,
+      image name to use for job containers, empty disables container mode),
+      OUTPOST_CONTAINER_RUNTIME (remote-worker, optional container runtime e.g. runsc,
+      default empty), OUTPOST_CONTAINER_MEMORY (remote-worker, container memory limit,
+      default 4g), OUTPOST_CONTAINER_CPUS (remote-worker, container CPU limit, default 2)
+    - Section 8 env vars table has the OUTPOST_TIMEOUT row (marked not implemented)
+      removed entirely
+    - No other sections are changed

@@ -71,14 +71,21 @@ Claude Code Session
 | (FastAPI daemon) |
 +------------------+
        |
-       | subprocess.run(["claude", "--print", prompt])
+       | docker run --rm --cap-drop ALL ... -v {working_dir}:/workspace
+       v
++------------------+
+| Job Container    |
+| (Docker)         |
++------------------+
+       |
+       | claude --print --permission-mode dangerouslySkipPermissions
        v
 +------------------+
 | Claude Process   |
-| (on remote host) |
+| (inside container)|
 +------------------+
        |
-       | git diff capture, output capture
+       | git diff capture (on host via bind mount), output capture
        v
 +------------------+
 | Job Result       |
@@ -291,6 +298,7 @@ All endpoints require `X-API-Key` header matching `IDEATE_WORKER_API_KEY` enviro
 | Working directory outside base | Return 400, reject job |
 | Prompt too large | Return 400, reject job |
 | Worker unreachable | Return error to caller |
+| OOM inside container | Job marked failed with `exit_code` 137 |
 
 ---
 
@@ -302,7 +310,6 @@ All endpoints require `X-API-Key` header matching `IDEATE_WORKER_API_KEY` enviro
 |----------|-----------|---------|---------|
 | `OUTPOST_MAX_DEPTH` | session-spawner | Maximum recursion depth | 3 |
 | `OUTPOST_MAX_CONCURRENCY` | session-spawner | Max concurrent sessions | 5 |
-| `OUTPOST_TIMEOUT` | session-spawner | Default session timeout *(not implemented)* | 600 |
 | `OUTPOST_SAFE_ROOT` | session-spawner | Restrict file access | None |
 | `OUTPOST_REMOTE_WORKERS` | session-spawner | JSON array of worker configs | [] |
 | `IDEATE_WORKER_API_KEY` | remote-worker | API key for authentication | Required |
@@ -311,3 +318,44 @@ All endpoints require `X-API-Key` header matching `IDEATE_WORKER_API_KEY` enviro
 | `IDEATE_WORKER_PORT` | remote-worker | Listen port | 7432 |
 | `IDEATE_WORKER_BASE_DIR` | remote-worker | Restrict working directories | None |
 | `IDEATE_WORKER_HOST` | remote-worker | Listen host address | 0.0.0.0 |
+| `OUTPOST_AGENT_IMAGE` | remote-worker | Docker image to use for job containers; empty string disables container mode | `""` |
+| `OUTPOST_CONTAINER_RUNTIME` | remote-worker | Container runtime override (e.g. `runsc` for gVisor) | `""` |
+| `OUTPOST_CONTAINER_MEMORY` | remote-worker | Memory limit for job containers | `4g` |
+| `OUTPOST_CONTAINER_CPUS` | remote-worker | CPU limit for job containers | `2` |
+
+---
+
+## 9. Container Sandboxing
+
+When `OUTPOST_AGENT_IMAGE` is set, each job runs inside a Docker container rather than a bare subprocess. The container provides isolation between the agent's execution environment and the host machine.
+
+### Per-job container lifecycle
+
+1. Daemon calls `docker run --rm --name job-{job_id} ...` for each job
+2. Host `working_dir` is bind-mounted to `/workspace` inside the container
+3. Container exits when claude completes; `--rm` removes it automatically
+4. `_capture_git_diff` runs on the host `working_dir` path after exit (bind mount preserves all writes)
+
+### Security properties
+
+| Measure | Flag | Effect |
+|---------|------|--------|
+| Drop all capabilities | `--cap-drop ALL` | No Linux capabilities; prevents most privilege escalation |
+| No new privileges | `--security-opt no-new-privileges` | Prevents setuid/setgid escalation |
+| Non-root user | `--user 1000:1000` | Agent runs as uid 1000, not root |
+| Memory limit | `--memory` / `--memory-swap` | OOM kills the agent process; host is unaffected |
+| CPU limit | `--cpus` | CFS quota; prevents CPU starvation of host |
+| PID limit | `--pids-limit 512` | Prevents fork bombs |
+| Auto-cleanup | `--rm` | Container removed on exit; no storage accumulation |
+
+### Permission mode
+
+`--permission-mode dangerouslySkipPermissions` is always passed to `claude` inside the container. The container boundary replaces interactive permission checks. The `permission_mode` field in the job request is ignored in container mode.
+
+### Optional: gVisor runtime
+
+Set `OUTPOST_CONTAINER_RUNTIME=runsc` to run containers under gVisor, which provides a second kernel boundary. Compatible with Python and Node.js workloads.
+
+### Fallback
+
+When `OUTPOST_AGENT_IMAGE` is not set, the daemon falls back to spawning `claude` directly as a host subprocess (existing behavior, unchanged).

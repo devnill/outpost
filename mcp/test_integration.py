@@ -226,3 +226,218 @@ async def test_get_nonexistent_job_returns_404(http_session, worker_server):
         headers={"X-API-Key": "test-key"},
     ) as resp:
         assert resp.status == 404
+
+
+@pytest.mark.asyncio
+async def test_spawn_remote_session_wrong_key_returns_auth_error(worker_server, http_session):
+    """WI-046 AC1: Wrong api_key causes _handle_spawn_remote_session to return an auth error."""
+    _server, port = worker_server
+
+    # Override spawner to use a wrong api_key for the worker
+    spawner_mod._remote_workers = [
+        {
+            "name": "test-worker",
+            "url": f"http://127.0.0.1:{port}",
+            "api_key": "wrong-key",
+        }
+    ]
+
+    # Use worker_name to bypass health-check selection and hit POST /jobs directly with the wrong key
+    result = await spawner_mod._handle_spawn_remote_session(
+        {"prompt": "hello", "working_dir": _working_dir(), "worker_name": "test-worker"}
+    )
+
+    assert result, "Expected non-empty result"
+    result_text = result[0].text
+    result_data = json.loads(result_text)
+    assert "error" in result_data, f"Expected 'error' key in result, got: {result_data}"
+    error_str = str(result_data["error"]).lower()
+    assert any(
+        token in error_str for token in ("auth", "401", "invalid", "key")
+    ), f"Expected auth/401/invalid/key in error message, got: {result_data['error']!r}"
+
+
+@pytest.mark.asyncio
+async def test_spawn_remote_session_correct_key_returns_job_id(worker_server, http_session):
+    """WI-046 AC2: Correct api_key causes _handle_spawn_remote_session to succeed and return a job_id."""
+    result = await spawner_mod._handle_spawn_remote_session(
+        {"prompt": "hello", "working_dir": _working_dir(), "worker_name": "test-worker"}
+    )
+
+    assert result, "Expected non-empty result"
+    result_data = json.loads(result[0].text)
+    assert "error" not in result_data, f"Unexpected error: {result_data}"
+    assert "job_id" in result_data, f"Expected 'job_id' in result, got: {result_data}"
+    assert result_data["job_id"], "job_id should be non-empty"
+    assert result_data["status"] == "queued", f"Expected status 'queued', got: {result_data['status']!r}"
+
+
+@pytest.mark.asyncio
+async def test_job_lifecycle_running_to_completed(monkeypatch):
+    """WI-042: A job submitted to the queue flows through an active worker coroutine to completion.
+
+    Starts one worker coroutine explicitly (mirroring the lifespan startup path),
+    monkeypatches _run_claude_job to use a trivial Python subprocess instead of the
+    real `claude` binary, submits a job through put_nowait, and polls until the job
+    reaches a terminal state. Verifies output, exit_code, completed_at, duration_ms.
+    """
+    import uuid
+
+    TRIVIAL_OUTPUT = "integration test output"
+
+    def _fake_run_claude_job(record):
+        """Replace the claude CLI with a trivial Python one-liner."""
+        import subprocess as sp
+        cmd = [
+            sys.executable,
+            "-c",
+            f"import sys; print('{TRIVIAL_OUTPUT}'); sys.exit(0)",
+        ]
+        proc = sp.Popen(
+            cmd,
+            stdout=sp.PIPE,
+            stderr=sp.PIPE,
+            text=True,
+            cwd=record.working_dir,
+        )
+        if record.status == "cancelled":
+            proc.kill()
+            return None
+        record.process = proc
+        try:
+            stdout, stderr = proc.communicate(timeout=30)
+        finally:
+            record.process = None
+        error = stderr if proc.returncode != 0 else None
+        return stdout, proc.returncode, error
+
+    monkeypatch.setattr(worker_mod, "_run_claude_job", _fake_run_claude_job)
+
+    # Reset module state
+    worker_mod.job_store.clear()
+    worker_mod._max_jobs = 1000
+    worker_mod.job_queue = asyncio.Queue(maxsize=worker_mod._max_jobs)
+
+    job_id = str(uuid.uuid4())
+    request = worker_mod.JobRequest(
+        prompt="hello",
+        working_dir=_working_dir(),
+    )
+    record = worker_mod.JobRecord(job_id, request)
+
+    # Start one worker coroutine explicitly (matches the lifespan startup path)
+    worker_task = asyncio.create_task(worker_mod._worker(0))
+
+    try:
+        # Submit job through the queue (as submit_job endpoint does)
+        worker_mod.job_queue.put_nowait(job_id)
+        async with worker_mod.job_store_lock:
+            worker_mod.job_store[job_id] = record
+
+        # Poll until the job reaches a terminal state
+        async def poll_until_done():
+            while True:
+                await asyncio.sleep(0.05)
+                async with worker_mod.job_store_lock:
+                    r = worker_mod.job_store.get(job_id)
+                if r and r.status in ("completed", "failed"):
+                    return r
+
+        try:
+            final = await asyncio.wait_for(poll_until_done(), timeout=15.0)
+        except asyncio.TimeoutError:
+            pytest.fail("Job did not reach a terminal state within timeout")
+    finally:
+        worker_task.cancel()
+        try:
+            await worker_task
+        except asyncio.CancelledError:
+            pass
+
+    assert final.status in ("completed", "failed"), (
+        f"Expected terminal status, got: {final.status!r}"
+    )
+    assert final.output is not None, "output should be non-None"
+    assert TRIVIAL_OUTPUT in final.output, (
+        f"Expected {TRIVIAL_OUTPUT!r} in output, got: {final.output!r}"
+    )
+    assert final.exit_code is not None, "exit_code should be non-None"
+    assert final.exit_code == 0, f"Expected exit_code 0, got {final.exit_code}"
+    assert final.completed_at is not None, "completed_at should be non-None"
+    assert final.duration_ms is not None, "duration_ms should be non-None"
+    assert final.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_container_mode_uses_docker_command_in_worker(monkeypatch):
+    """When OUTPOST_AGENT_IMAGE is set, the worker builds a docker run command."""
+    import uuid
+    from unittest.mock import MagicMock
+
+    # Activate container mode
+    monkeypatch.setattr(worker_mod, "_agent_image", "outpost-agent:test")
+
+    # Track the command passed to Popen
+    captured_cmd = []
+
+    def fake_popen(cmd, **kwargs):
+        captured_cmd.extend(cmd)
+        # Return a mock process that simulates successful completion
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate.return_value = ('{"result": "ok"}', "")
+        return mock_proc
+
+    monkeypatch.setattr(worker_mod.subprocess, "Popen", fake_popen)
+
+    # Reset module state (same pattern as lifecycle test)
+    worker_mod.job_store.clear()
+    worker_mod._max_jobs = 1000
+    worker_mod.job_queue = asyncio.Queue(maxsize=worker_mod._max_jobs)
+
+    job_id = str(uuid.uuid4())
+    request = worker_mod.JobRequest(
+        prompt="test container mode",
+        working_dir=_working_dir(),
+    )
+    record = worker_mod.JobRecord(job_id, request)
+
+    # Start one worker coroutine explicitly
+    worker_task = asyncio.create_task(worker_mod._worker(0))
+
+    try:
+        worker_mod.job_queue.put_nowait(job_id)
+        async with worker_mod.job_store_lock:
+            worker_mod.job_store[job_id] = record
+
+        # Poll until terminal state
+        async def poll_until_done():
+            while True:
+                await asyncio.sleep(0.05)
+                async with worker_mod.job_store_lock:
+                    r = worker_mod.job_store.get(job_id)
+                if r and r.status in ("completed", "failed"):
+                    return r
+
+        try:
+            final = await asyncio.wait_for(poll_until_done(), timeout=10.0)
+        except asyncio.TimeoutError:
+            pytest.fail("Container mode job did not reach a terminal state within timeout")
+    finally:
+        worker_task.cancel()
+        try:
+            await worker_task
+        except asyncio.CancelledError:
+            pass
+
+    # Verify container mode was activated: command starts with "docker"
+    assert captured_cmd, "Popen was never called — worker did not process the job"
+    assert captured_cmd[0] == "docker", (
+        f"Expected command to start with 'docker' in container mode, got: {captured_cmd[0]!r}"
+    )
+    assert "run" in captured_cmd, "Expected 'run' in docker command"
+
+    # Verify job reached completed state (mock returncode=0 always produces "completed")
+    assert final.status == "completed", (
+        f"Expected 'completed' (mock returncode=0), got: {final.status!r}"
+    )

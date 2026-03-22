@@ -393,3 +393,259 @@ Rework: 2 significant findings fixed — S1: `_process_job` `result is None` bra
 Cycle 1 comprehensive review attempted. All three review agents (code-reviewer, spec-reviewer, gap-analyst) hit the Sonnet rate limit before producing output.
 Rate limit resets: 11pm America/Denver.
 Action required: re-run /ideate:brrr after rate limit resets to complete cycle 1 review.
+
+## [brrr] 2026-03-22 — Cycle 1 review complete
+Critical findings: 0
+Significant findings: 4
+Minor findings: 5
+Convergence: not achieved — S1 (FileNotFoundError lock race), S2 (communicate() no timeout after kill), S3 (_session_registry unbounded), S4 (cancel fan-out sequential)
+
+## [brrr] 2026-03-22 — Cycle 1 metrics summary
+Agents spawned: 4 total (1 code-reviewer, 1 spec-reviewer, 1 gap-analyst, 1 journal-keeper)
+Total wall-clock: ~737,000ms
+Models used: sonnet
+Slowest agent: journal-keeper — 287,299ms
+
+## [brrr] 2026-03-22 — Cycle 1 refinement
+Findings addressed: 0 critical, 4 significant
+New work items created: WI-034 (Fix _run_claude_job FileNotFoundError lock race and communicate() timeout), WI-035 (Cap _session_registry with bounded deque), WI-036 (Fix cancel_remote_job sequential fan-out)
+Work items reset for rework: none
+
+## [brrr] 2026-03-22 — Cycle 2 — Work item 035: Cap _session_registry with bounded deque
+Status: complete with rework
+Rework: 1 minor finding fixed — stale docstring updated (test_server.py:505 described deque reset as "to []"; corrected to "empty deque(maxlen=1000)").
+81 session-spawner tests pass.
+
+## [brrr] 2026-03-22 — Cycle 2 — Work item 036: Fix cancel_remote_job sequential fan-out
+Status: complete with rework
+Rework: 1 significant finding fixed — concurrency test replaced with asyncio.Event cross-wait pattern that deadlocks under sequential execution; 1 minor finding fixed — fallback error message now includes all workers (not just not_found ones).
+81 session-spawner tests pass.
+
+## [brrr] 2026-03-22 — Cycle 2 — Work item 034: Fix _run_claude_job FileNotFoundError lock race and communicate() timeout
+Status: complete with rework
+Rework: 1 significant finding fixed — FileNotFoundError branch in `_process_job` added `if record.status != "cancelled"` guard to match normal completion path; 1 minor finding fixed — TimeoutExpired fallback changed from `b"", b""` to `"", ""` (consistent with text=True Popen), variables renamed from `stdout_bytes`/`stderr_bytes` to `stdout_data`/`stderr_data`.
+40 remote-worker tests pass.
+
+## [brrr] 2026-03-22 — Cycle 2 review complete
+Critical findings: 0
+Significant findings: 2
+Minor findings: 7 (3 carry-forward, 4 new)
+Convergence: not achieved — S1 (_capture_git_diff subprocess leak on timeout, no proc.kill/communicate before return None), P7-1 (unbounded job_queue in remote-worker violates Principle 7 "unlimited is never the default")
+
+## [brrr] 2026-03-22 — Cycle 2 refinement
+Findings addressed: 0 critical, 2 significant
+New work items created: WI-037 (Fix _capture_git_diff subprocess leak on timeout), WI-038 (Bound job_queue with maxsize and HTTP 429 back-pressure)
+Work items reset for rework: none
+
+## [brrr] 2026-03-22 — Cycle 3 — Work item 037: Fix _capture_git_diff subprocess leak on timeout
+Status: complete with rework
+Rework: 1 minor finding fixed — test assertion replaced with ordered mock_calls check to verify kill-before-communicate sequence.
+42 remote-worker tests pass.
+
+## [brrr] 2026-03-22 — Cycle 3 — Work item 038: Bound job_queue with maxsize and HTTP 429 back-pressure
+Status: complete with rework
+Rework: 1 significant finding fixed — lifespan function now recreates job_queue with runtime-configured maxsize (was using hardcoded 1000 from module load); 1 minor finding fixed — _reset_globals fixture now resets _max_jobs before recreating job_queue in both setup and teardown.
+42 remote-worker tests pass.
+
+## [brrr] 2026-03-22 — Cycle 3 review complete
+Critical findings: 0
+Significant findings: 4
+Minor findings: 9 (4 carry-forward code, 2 carry-forward gap, 1 new gap code, 2 new gap)
+Convergence: not achieved — S1 (TOCTOU race job_queue.full/put), S2 (cancel remote job returns on connection error), NG1 (ambiguous FileNotFoundError sentinel), CF1 (no subprocess integration test)
+
+## [brrr] 2026-03-22 — Cycle 3 refinement
+Findings addressed: 0 critical, 4 significant
+New work items created: WI-039 (Fix job_queue TOCTOU race with put_nowait), WI-040 (Fix _handle_cancel_remote_job connection error masking), WI-041 (Replace FileNotFoundError sentinel with dedicated type), WI-042 (Add subprocess integration test)
+Work items reset for rework: none
+
+## [brrr] 2026-03-22 — Cycle 4 — Work item 039: Fix job_queue TOCTOU race with put_nowait
+Status: complete
+No rework required. 42 remote-worker tests pass.
+
+## [brrr] 2026-03-22 — Cycle 4 — Work item 040: Fix _handle_cancel_remote_job connection error masking
+Status: complete with rework
+Rework: 1 minor finding fixed — final fallback message now includes connection error details alongside not-found workers when there is a mix, distinguishing confirmed absences from network failures.
+82 session-spawner tests pass.
+
+## [brrr] 2026-03-22 — Cycle 4 — Work item 041: Replace FileNotFoundError sentinel with dedicated type
+Status: complete
+No rework required. 42 remote-worker tests pass.
+
+## [brrr] 2026-03-22 — Cycle 4 — Work item 042: Add subprocess integration test
+Status: complete with rework
+Rework: 1 minor finding fixed — _fake_run_claude_job now clears record.process in a finally block; 1 spec criterion met — test rewritten to start explicit worker coroutine and submit via put_nowait (spec reviewer flagged direct _process_job call as bypassing worker infrastructure).
+130 total tests pass (42 remote-worker, 82 session-spawner, 6 integration).
+
+## [brrr] 2026-03-22 — Cycle 4 review complete
+Critical findings: 0
+Significant findings: 0
+Minor findings: 13 (4 carry-forward code, 8 carry-forward gap, 1 new gap)
+Convergence: ACHIEVED — Condition A (0 critical, 0 significant) and Condition B (Principle Violations = None.) both pass.
+
+## [brrr] 2026-03-22 — brrr session complete
+Cycles: 4
+Total work items executed: 9 (WI-034 through WI-042)
+Start commit: e6a223f68940d93bfe39f7cfede31061a59f2108
+Convergence commit: dfff86739405bcf4509547005c6445654e156f39
+
+## [brrr] 2026-03-22 — Convergence achieved
+Cycles: 4
+Total items executed: 9
+
+## [brrr] 2026-03-22 — Overall metrics summary
+Total agents spawned across all cycles: ~20 (cycle 1: ~5 review agents; cycle 2: 3 workers + 3 incremental reviewers + 4 comprehensive reviewers; cycle 3: 2 workers + 2 incremental reviewers + 4 comprehensive reviewers; cycle 4: 4 workers + 4 incremental reviewers + 4 comprehensive reviewers)
+Total wall-clock across all cycles: metrics partially unavailable (cycles 2–4 executed in prior context before compaction)
+
+## [refine] 2026-03-22 — Refinement planning completed
+Trigger: user request — address all 9 minor open items from cycle 4 brrr session (CF2, CF3, CF5, CF7, NG2, NG3, NC1, NC2, NG4)
+Principles changed: none
+New work items: WI-043 through WI-046
+Four work items covering two small code fixes (NG2: list_jobs timestamp fields; NG4: submit_job store ordering) and seven test coverage gaps across remote-worker, session-spawner, and integration test files. WI-043 and WI-044 share remote-worker/test_server.py and are sequenced; WI-045 and WI-046 are independent.
+
+## [refine] 2026-03-22 — Metrics summary
+Agents spawned: 1 total (1 architect)
+Total wall-clock: 176150ms
+Models used: claude-opus-4-6
+Slowest agent: architect — 176150ms
+
+## [brrr] 2026-03-22 — Cycle 1 — Work item 043: Fix list_jobs missing timestamp fields and submit_job store ordering
+Status: complete with rework
+Rework: 2 minor findings fixed from incremental review.
+M1: Added `assert len(worker.job_store) == 0` rollback assertion in test_create_job_queue_full_returns_429. M2: Renumbered duplicate section 20 to 21 in test_server.py.
+
+## [brrr] 2026-03-22 — Cycle 1 — Work item 045: Add session-spawner tests for NC1, NC2, CF7
+Status: complete with rework
+Rework: 1 minor finding fixed — NC2 assertions tightened from disjunctive `or` checks to direct string assertions ("not found" and "Connection refused" must both be present).
+
+## [brrr] 2026-03-22 — Cycle 1 — Work item 046: Add auth to integration test flows (NG3)
+Status: complete with rework
+Rework: 1 minor finding fixed — AC1 test now passes worker_name to bypass health-check path and directly exercise POST /jobs 401 response branch.
+
+## [brrr] 2026-03-22 — Cycle 1 — Work item 044: Remote-worker cancel-path tests (CF2, CF3, CF5)
+Status: complete
+Minor warning noted in review: CF5 patch produces RuntimeWarning (unawaited coroutine) at teardown — warning only, tests pass.
+
+## [brrr] 2026-03-22 — Cycle 1 review complete
+Critical findings: 0
+Significant findings: 0 (code-quality reported S1–S4 as significant but all 4 were stale — addressed by WI-034, WI-035, WI-036, WI-041 in prior brrr session)
+Minor findings: 8 (M1–M5 from code-quality, plus deferred gap items EC1, EC2, II1)
+
+## [brrr] 2026-03-22 — Cycle 1 metrics summary
+Agents spawned: 8 total (4 workers, 4 incremental reviewers, 3 comprehensive reviewers, 1 journal-keeper)
+Total wall-clock: ~900s estimated (metrics.jsonl not updated for this session)
+Models used: sonnet (workers, reviewers)
+Slowest agent: gap-analyst — ~216s
+
+## [brrr] 2026-03-22 — Convergence achieved
+Cycles: 1
+Total items executed: 4
+
+## [brrr] 2026-03-22 — Overall metrics summary
+Total agents spawned across all cycles: 9 (4 workers, 4 incremental reviewers, 3 comprehensive reviewers, 1 journal-keeper)
+Total wall-clock across all cycles: ~900s estimated
+metrics.jsonl not updated for this session (context continuation from prior session)
+
+## [refine] 2026-03-22 — Refinement planning completed
+Trigger: Post-convergence direction change. User identified remote execution as the primary Outpost use case. Docker-based sandboxing for unattended agent execution (--dangerously-skip-permissions inside containers).
+Principles changed: none
+New work items: WI-047 through WI-050
+This refinement cycle scopes to Docker containerization of remote-worker job execution. Multi-tool driver abstraction (opencode, alternative backends) deferred pending further investigation. Daemon containerization deferred as a deployment concern.
+
+## [refine] 2026-03-22 — Metrics summary
+Agents spawned: 2 total (2 researchers)
+Total wall-clock: ~480s estimated
+Models used: sonnet (researchers)
+Slowest agent: container-sandboxing researcher — ~240s estimated
+
+## [execute] 2026-03-22 — Work item 047: Dockerfile for outpost agent container image
+Status: complete with rework
+Rework: 1 critical finding fixed from incremental review. The base image `node:20-bookworm-slim` ships with a `node` user at uid 1000, causing `useradd -u 1000 agent` to fail with "UID is not unique". Fixed by renaming the existing `node` user/group to `agent` via `usermod -l agent -d /home/agent -m node && groupmod -n agent node`. Redundant `mkdir -p /workspace` also removed (WORKDIR creates the directory owned by the active user).
+
+## [execute] 2026-03-22 — Work item 048: Containerize job execution in _run_claude_job
+Status: complete with rework
+Rework: 1 critical + 1 significant + 1 minor finding fixed. C1: container_name was set before Popen, creating a cancel-race window; moved to after the cancelled guard and record.process assignment. C2: FileNotFoundError message was always "claude CLI not found" even in container mode; branched on _agent_image to emit "docker not found" when container mode is active. M2: _reset_globals fixture did not reset the four container config module-level variables; added resets. S1 (no container tests) is explicitly addressed by WI-049.
+
+## [execute] 2026-03-22 — Work item 050: Update architecture documentation for container sandboxing
+Status: complete with rework
+Rework: 2 significant findings fixed. S1: OUTPOST_AGENT_IMAGE and OUTPOST_CONTAINER_RUNTIME defaults shown as None in Section 8; corrected to "" to match os.environ.get(..., "") implementation. S2: Section 9 used wrong CLI flag name "--dangerously-skip-permissions"; corrected to "--permission-mode dangerouslySkipPermissions".
+
+## [execute] 2026-03-22 — Work item 049: Tests for containerized job execution
+Status: complete with rework
+Rework: 3 minor findings fixed from incremental review. M1: security flag assertions upgraded to adjacency checks (cap_drop_index+1 == "ALL", security_opt_index+1 == "no-new-privileges") instead of free-floating membership checks. M2: _make_mock_proc stdout default changed from "output" to '{"result": "ok"}' (valid JSON consistent with the rest of the test file). M3 (reviewer's M2): sync test isolation confirmed safe — all tests use monkeypatch which restores state; no additional fixture changes needed.
+
+## [execute] 2026-03-22 — Metrics summary
+Agents spawned: 18 total (4 workers, 6 code-reviewers — 3 initial + 3 re-reviews)
+Total wall-clock: ~2929s estimated
+Models used: sonnet (workers, reviewers)
+Slowest agent: code-reviewer (WI-047 re-review with Docker build verification) — ~1317s
+
+## [review] 2026-03-22 — Comprehensive review completed
+Critical findings: 0
+Significant findings: 4 (S1: ANTHROPIC_API_KEY in process table; S2: no docker stop test; DG1: remote-worker README missing container docs; DG2: root README missing container sandboxing)
+Minor findings: 5
+Suggestions: 3
+Items requiring user input: 0
+Curator: ran — updated remote-dispatch policies (P-6, P-7), decisions (D-24–D-29), questions (Q-19–Q-25); index.md current_cycle set to 8
+
+## [review] 2026-03-22 — Metrics summary
+Agents spawned: 4 (code-reviewer, spec-reviewer, gap-analyst, domain-curator)
+Total wall-clock: ~671s estimated
+Models used: sonnet
+Slowest agent: domain-curator — ~301s
+
+## [refine] 2026-03-22 — Refinement planning completed
+Trigger: Cycle 8 capstone review findings
+Principles changed: none
+New work items: 051-055
+Addresses cycle 8 findings: S1 (ANTHROPIC_API_KEY secret in command list), S2 (no docker stop cancel test), DG1 (remote-worker README missing container docs), DG2 (root README missing container sandboxing), AO1 (blocking docker stop in async cancel_job), M1 (missing eviction call in cancel-while-starting path), M2 (no ANTHROPIC_API_KEY pre-flight check in container mode). All 5 work items touch different files; one parallel batch.
+
+## [refine] 2026-03-22 — Metrics summary
+Agents spawned: 1 (architect — analyze mode)
+Total wall-clock: ~179s
+Models used: claude-opus-4-6
+Slowest agent: architect — 179s
+
+## [execute] 2026-03-22 — Work item 051: Fix server.py security, correctness, and async issues
+Status: complete with rework
+Rework: 1 significant finding fixed from incremental review. Added `test_create_job_container_mode_missing_api_key_returns_500` to `mcp/remote-worker/test_server.py` to cover the ANTHROPIC_API_KEY pre-flight check in `create_job` (the check was implemented but had no test).
+All 4 changes applied: ANTHROPIC_API_KEY name-only in _build_container_cmd, pre-flight guard in create_job, asyncio.to_thread wrapping docker stop in cancel_job, _evict_terminal_jobs_locked() in result-is-None branch of _process_job.
+
+## [execute] 2026-03-22 — Work item 052: Document container mode in remote-worker README
+Status: complete with rework
+Rework: 1 minor finding fixed from incremental review. Reverted claude CLI prerequisite bullet to original text (worker had added "(required in direct mode)" without authorization).
+3 changes applied: Docker prerequisite added, 4 new env var rows in table, Container Mode section added before API Reference.
+
+## [execute] 2026-03-22 — Work item 053: Add container sandboxing section to root README
+Status: complete with rework
+Rework: 1 minor finding fixed from incremental review. Made Dockerfile reference explicit in the docker build command comment (`# uses mcp/remote-worker/Dockerfile`).
+New Remote Worker Deployment / Container Sandboxing section inserted between ## Configuration and ## Architecture.
+
+## [execute] 2026-03-22 — Work item 054: Add docker stop cancel path test
+Status: complete with rework
+Rework: 1 minor finding fixed from incremental review. Tightened docker_stop_calls assertion from prefix-slice `any(cmd[:3] == [...])` to exact equality `docker_stop_calls == [["docker", "stop", container_name]]`.
+New test `test_cancel_running_container_job_calls_docker_stop` added to mcp/remote-worker/test_server.py. 55 tests pass.
+
+## [execute] 2026-03-22 — Work item 055: Add container mode integration test
+Status: complete with rework
+Rework: 1 significant + 1 minor finding fixed from incremental review. Changed terminal-state assertion from `in ("completed", "failed")` to `== "completed"`. Removed "cancelled" from poll predicate.
+New test `test_container_mode_uses_docker_command_in_worker` added to mcp/test_integration.py. 9 integration tests pass.
+
+## [execute] 2026-03-22 — Metrics summary
+Agents spawned: 10 total (5 workers, 5 code-reviewers)
+Total wall-clock: ~1383s
+Models used: sonnet
+Slowest agent: code-reviewer (WI-051) — ~566s
+
+## [review] 2026-03-22 — Comprehensive review completed (cycle 9)
+Critical findings: 0 (1 found, resolved in rework)
+Significant findings: 0 (2 found, resolved in rework)
+Minor findings: 5
+Suggestions: 2
+Items requiring user input: 0
+Curator: ran (model: sonnet — no conflict signals)
+
+## [review] 2026-03-22 — Metrics summary (cycle 9)
+Agents spawned: 5 total (code-reviewer, spec-reviewer, gap-analyst, journal-keeper, domain-curator)
+Total wall-clock: ~1250s (estimated)
+Models used: sonnet
+Slowest agent: domain-curator — ~369s

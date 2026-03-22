@@ -1,6 +1,20 @@
 # Planning Interview — Outpost
 
 ---
+## Refinement Interview — 2026-03-22
+
+**Context**: Post-convergence direction change. User wants Outpost's primary use case to be remote execution with Docker-based sandboxing for safety (unattended agents running `--dangerously-skip-permissions` inside containers) and multi-tool/multi-model support. Research commissioned on container sandboxing and alternative AI coding tools. This interview covers the Docker sandboxing scope. Multi-tool abstraction deferred to a subsequent cycle pending further investigation.
+
+**Q: Should the daemon itself be containerized, or just the jobs it runs?**
+A: Daemon on host is acceptable for the initial implementation. Containerizing the daemon is a deployment concern — iterate on it later.
+
+**Q: When a job runs in a container with a bind-mounted workspace, should writes persist back to a host directory, or is the workspace disposable?**
+A: No strong opinion. Security and modularity are the only drivers. Don't want malicious or defective prompts to damage the machine running the agent.
+
+**Q: Should this cycle add the multi-tool driver abstraction and opencode as the first alternative backend?**
+A: No — defer. Investigate Claude Code alternatives before committing to a design. This cycle is Docker sandboxing only.
+
+---
 ## Refinement Interview — 2026-03-21
 
 **Context**: Cycle 7 capstone review found 0 critical, 0 significant findings. User requested all Category 1 (code fixes) and Category 2 (documentation) items from the review's proposed refinement plan. OQ-025 (in-memory session registry vs. filesystem-state design decision) deferred to next refinement cycle.
@@ -143,3 +157,25 @@ A: Yes, worth it. Add integration tests.
 
 **Q: Minor findings — address all documentation fixes (architecture.md, remote-worker README, session-spawner README), startup validation warnings, and token_usage null consistency?**
 A: Yes, do all minor fixes.
+
+---
+## Refinement Interview — 2026-03-22
+
+**Context**: Brrr session converged in cycle 4. Nine minor open items deferred from cycle 4 gap analysis: CF2, CF3, CF5, CF7 (test coverage gaps in remote-worker), NG2 (list_jobs missing fields), NG3 (auth not exercised in integration tests), NG4 (submit_job ordering), NC1, NC2 (session-spawner test gaps).
+
+**Q: Are you addressing all 9 minor open items from the cycle 4 brrr session?**
+A: Yes, all 9.
+
+**Q: Do the guiding principles still apply, or do any need to change?**
+A: All principles unchanged.
+
+---
+## Refinement Interview — 2026-03-22 (Cycle 9)
+
+**Context**: Post-review correction. Cycle 8 capstone review produced 4 significant findings (S1 API key in process table, S2 no docker stop test, DG1 remote-worker README missing container docs, DG2 root README missing container sandboxing) plus one architect observation (AO1 blocking docker stop in async event loop) and two minor findings (M1 eviction call missing, M2 no ANTHROPIC_API_KEY pre-flight check). User elected to address all findings in this cycle.
+
+**Q: Do the guiding principles still apply, or do any need to change?**
+A: (Confirmed unchanged — all findings are bug fixes and documentation gaps within existing architecture.)
+
+**Q: The review found 4 significant findings (S1, S2, DG1, DG2), one architect observation (AO1 — blocking docker stop on async loop), and two minor findings (M1 — missing eviction call, M2 — no API key pre-flight). Address all now, defer any, or dismiss any?**
+A: Let's do them all.

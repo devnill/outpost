@@ -1,58 +1,51 @@
-# Execution Strategy — Outpost Cycle 8
+# Execution Strategy — Outpost Cycle 9
 
 ## Mode
-Sequential
+Batched parallel
 
 ## Parallelism
-Max concurrent agents: 1
+Max 5 agents (all work items touch different files — full parallelism available)
 
 ## Worktrees
-Enabled: no
+Disabled (no file conflicts between items; worktrees add overhead without benefit here)
 
 ## Review Cadence
-After each work item.
+Incremental review after each work item completes.
 
-## Work Items
+## Work Item Groups
 
-| ID | Title | Complexity | Depends |
-|----|-------|------------|---------|
-| 028 | Fix proc.terminate() race in cancel_job | easy | — |
-| 029 | Handle FileNotFoundError for missing claude binary | easy | — |
-| 030 | Fix conftest sys.modules key collision | easy | — |
-| 031 | Add --cwd to _run_claude_job; add max_jobs to list_remote_workers | easy | — |
-| 032 | Documentation sweep (cycle 7 minor gaps) | easy | — |
+### Batch 1 — All items (parallel)
+
+All five work items touch different files and have no dependencies on each other:
+
+| Work Item | File(s) | Complexity |
+|-----------|---------|------------|
+| WI-051 | mcp/remote-worker/server.py | easy |
+| WI-052 | mcp/remote-worker/README.md | easy |
+| WI-053 | README.md | easy |
+| WI-054 | mcp/remote-worker/test_server.py | easy |
+| WI-055 | mcp/test_integration.py | easy |
+
+All five may be dispatched simultaneously in a single batch.
 
 ## Dependency Graph
 
-All five work items are independent. No inter-item dependencies.
-
 ```
-028 (independent)
-029 (independent)
-030 (independent)
-031 (independent)
-032 (independent)
+WI-051 ─── (none)
+WI-052 ─── (none)
+WI-053 ─── (none)
+WI-054 ─── (none)
+WI-055 ─── (none)
 ```
-
-## Work Item Groups and Recommended Order
-
-**Group 1 (remote-worker code)**: 028, 031
-Both modify `mcp/remote-worker/server.py`. Run sequentially to avoid conflicts.
-
-**Group 2 (both servers code)**: 029
-Modifies both `mcp/remote-worker/server.py` and `mcp/session-spawner/server.py` and both test files.
-
-**Group 3 (test infrastructure)**: 030
-Modifies all four conftest/test files. Run after the code changes so tests pass cleanly.
-
-**Group 4 (documentation)**: 032
-No code deps. Can run at any point; placed last to verify documentation against completed code.
-
-Recommended sequential order: 028 → 031 → 029 → 030 → 032
-
-Note: 028 and 031 both touch remote-worker/server.py. Run 028 first (smaller change), then 031. If they happen to be run in parallel by accident, the changes are in different functions (cancel_job vs _run_claude_job / _fetch_worker_health) and will not conflict, but sequential is safer.
 
 ## Agent Configuration
-Model for development: sonnet
-Model for review: sonnet
-Permission mode: acceptEdits
+
+- Model: sonnet (all work items)
+- Max turns: 15 per agent (all items are small, focused edits)
+- Permission mode: acceptEdits
+
+## Notes
+
+WI-054 tests the behavior of `cancel_job` after the AO1 fix (asyncio.to_thread wrapping). The test should be written to verify the post-fix behavior: `subprocess.run` is called with `["docker", "stop", "job-{id}"]` when a running containerized job is cancelled. Since `asyncio.to_thread` simply calls the function in a thread pool, monkeypatching `subprocess.run` on the worker module will intercept the call regardless.
+
+WI-055 follows the pattern of the existing full-lifecycle integration test: start a `_worker` coroutine, monkeypatch `_run_claude_job` to simulate execution, set `_agent_image` to activate container mode, submit a job via the queue, and verify the worker correctly processes the job in container mode (verifying `record.container_name` is set during execution and cleared after).

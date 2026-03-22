@@ -1,53 +1,80 @@
-## Verdict: Pass
+# Spec Adherence Review — Cycle 001
 
-All cycle-7 tracked deviations (D1 `max_jobs` forwarding, MD3 `proc.terminate()` race, MD4 architecture table gap) are resolved by cycle-8 work items 028–032. No new architectural deviations introduced. All 12 guiding principles are satisfied; the single pre-existing acknowledged gap (in-memory session registry, documented as D-8/Q-4 since cycle 2) is unchanged and does not constitute a violation.
+---
+
+## Architecture Deviations
+
+### D1: OUTPOST_TIMEOUT Listed in Architecture Env Var Table But Not Implemented
+
+- **Expected**: Architecture lists `OUTPOST_TIMEOUT` as configurable.
+- **Actual**: No code reads `OUTPOST_TIMEOUT`; timeout is a per-call parameter defaulting to 600s.
+- **Evidence**: Architecture row annotated `*(not implemented)*`. Pre-existing acknowledged deviation; accepted state.
+
+### D2: session-spawner Uses subprocess.run; Architecture Diagram Shows subprocess.Popen
+
+- **Expected**: Architecture section 2 data flow shows `subprocess.Popen(...)`.
+- **Actual**: `mcp/session-spawner/server.py` uses `subprocess.run(...)`.
+- **Evidence**: Intentional — session-spawner does not need in-flight cancellation. Remote-worker correctly uses `subprocess.Popen`. Diagram is illustrative, not binding.
+
+### D3: In-Memory Session Registry Contradicts Filesystem-Only State Constraint
+
+- **Expected**: Principle 11 and Constraint 4 require no in-memory state persisting between tool calls.
+- **Actual**: `_session_registry: list[dict] = []` grows across tool calls in session-spawner.
+- **Evidence**: Registry is purely observational (status table printing), never drives functional decisions. Pre-existing acknowledged gap since cycle 2.
+
+---
+
+## Unmet Acceptance Criteria
+
+All active work items (028–033) have incremental review verdicts of Pass or Pass (with rework). No unmet acceptance criteria.
+
+---
 
 ## Principle Violations
 
 None.
 
+---
+
 ## Principle Adherence Evidence
 
-- **Principle 1 — Session Isolation**: Each spawn receives a full copy of the environment dict with only `OUTPOST_SPAWN_DEPTH` and selectively controlled keys modified; no mutable shared state crosses process boundaries. `mcp/session-spawner/server.py:461` — `env = {**os.environ, "OUTPOST_SPAWN_DEPTH": str(current_depth + 1)}`.
+- Principle 1 — Session Isolation: Each spawn receives a copied environment dict with only controlled keys modified. No shared mutable objects across process boundaries.
 
-- **Principle 2 — Explicit State Management**: Satisfied with documented gap. All cross-session coordination uses filesystem artifacts when `OUTPOST_LOG_FILE` is set (`mcp/session-spawner/server.py:1201–1208`). Module-level `_session_registry` list (`mcp/session-spawner/server.py:1195`) accumulates in memory across tool calls within one server process. This is pre-existing deviation D-8 / open question Q-4, tracked since cycle 2, awaiting user decision. Not classified as a violation.
+- Principle 2 — Explicit State Management: Cross-session coordination uses filesystem artifacts when `OUTPOST_LOG_FILE` configured. In-memory `_session_registry` is observational only. Remote-worker job store permitted by Constraint 16.
 
-- **Principle 3 — Graceful Degradation**: Timeout handling captures partial stdout/stderr and returns structured error (`mcp/session-spawner/server.py:490–502`). `FileNotFoundError` on missing `claude` binary caught and returned as structured error in both servers (`mcp/session-spawner/server.py:485–489`; `mcp/remote-worker/server.py:379–384`). Remote worker failures return structured error dicts without crashing (`mcp/session-spawner/server.py:692–701`).
+- Principle 3 — Graceful Degradation: Timeout expired captures partial output as structured error. `FileNotFoundError` caught in both servers and returned as structured error. All remote HTTP failures return structured error dicts.
 
-- **Principle 4 — Transparency and Observability**: Every job state transition logged (`mcp/remote-worker/server.py:435–438`, `458–468`). Job responses include `created_at`, `started_at`, `completed_at`, `duration_ms` (`mcp/remote-worker/server.py:227–256`). Session-spawner prints status table to stderr after every spawn (`mcp/session-spawner/server.py:573–574`) and writes JSONL to `OUTPOST_LOG_FILE` when configured.
+- Principle 4 — Transparency and Observability: Every job state transition logged to stderr in remote-worker. Job GET responses include `created_at`, `started_at`, `completed_at`, `duration_ms`. Session-spawner prints status table and writes JSONL when `OUTPOST_LOG_FILE` set.
 
-- **Principle 5 — Configurable Dispatch**: Local dispatch uses `subprocess.run` (`mcp/session-spawner/server.py:476–484`); remote dispatch uses HTTP POST to `/jobs` (`mcp/session-spawner/server.py:811–841`). Both modes accept the same `prompt`, `working_dir`, `role`, `max_turns`, `timeout`, `permission_mode`, `allowed_tools` parameters.
+- Principle 5 — Configurable Dispatch: `spawn_session` uses `subprocess.run` locally; `spawn_remote_session` uses HTTP POST to `/jobs`. Both accept identical parameters.
 
-- **Principle 6 — Protocol Compliance**: Unknown tool names raise `McpError` with JSON-RPC code -32601 (`mcp/session-spawner/server.py:279–280`). All tool schemas use proper JSON Schema `type`/`properties`/`required` structure. Async tool execution via `@server.call_tool()` decorator per MCP convention.
+- Principle 6 — Protocol Compliance: Unknown tool names raise `McpError` with JSON-RPC code -32601. All five tools declared with proper JSON Schema structure.
 
-- **Principle 7 — Resource Bounds**: Concurrency capped by `asyncio.Semaphore` defaulting to 5 (`mcp/session-spawner/server.py:1133`). Output truncated at 50 KB (`mcp/session-spawner/server.py:44`, `519`). Prompts rejected above 100 KB in both servers. Sessions killed on timeout. Remote-worker concurrency bounded by `IDEATE_WORKER_MAX_CONCURRENCY` (`mcp/remote-worker/server.py:97`).
+- Principle 7 — Resource Bounds: Concurrency capped by `asyncio.Semaphore` (default 5). Output truncated at 50 KB. Prompts rejected above 100 KB in both servers. Timeout enforced with kill.
 
-- **Principle 8 — Role-Based Sessions**: All four architecture-specified roles (`worker`, `reviewer`, `manager`, `proxy-human`) present in `mcp/roles/default-roles.json`. Role `allowed_tools`, `system_prompt`, `max_turns`, and `permission_mode` applied with caller-wins semantics for both local and remote sessions.
+- Principle 8 — Role-Based Sessions: All four roles in `mcp/roles/default-roles.json`. Role `allowed_tools`, `system_prompt`, `max_turns`, `permission_mode` applied with caller-wins semantics for local and remote sessions.
 
-- **Principle 9 — Depth Limits**: Server-side max depth read from `OUTPOST_MAX_DEPTH` at startup (`mcp/session-spawner/server.py:1136–1141`). Caller-supplied `max_depth` clamped via `min()` (`mcp/session-spawner/server.py:407`). Depth incremented in child environment on every spawn. Error returned before spawn when `current_depth >= max_depth`.
+- Principle 9 — Depth Limits: Max depth read from `OUTPOST_MAX_DEPTH`. Caller `max_depth` clamped to `min(caller, server)`. Error returned before spawn when depth exceeded.
 
-- **Principle 10 — Result Integrity**: `git_diff` captured via `git diff HEAD` after job completion (`mcp/remote-worker/server.py:332–347`, `418`). Exit codes preserved in all response paths including timeout (exit_code -1). Truncation flagged with `output_truncated: true` and `full_output_path` (`mcp/session-spawner/server.py:618–624`). `error` field populated from stderr when `returncode != 0`.
+- Principle 10 — Result Integrity: `git_diff` captured after remote job completion. Exit codes preserved including timeout (exit_code -1). Truncation flagged with `output_truncated: true` and `full_output_path`.
 
-- **Principle 11 — Stateless Server**: Same pre-existing gap as Principle 2. No other persistent cross-invocation state exists in the MCP server. All configuration read from environment variables at startup. Remote-worker in-memory job store is intentional per constraint 16.
+- Principle 11 — Stateless Server: No persistent cross-invocation state affects functional outcomes. Remote-worker in-memory job store permitted by Constraint 16. `_session_registry` is observational only.
 
-- **Principle 12 — Minimal Dependencies**: `mcp/session-spawner/server.py` imports `mcp`, `aiohttp`, and stdlib only. `mcp/remote-worker/server.py` imports `fastapi`, `uvicorn`, `pydantic`, and stdlib only. No ORM, message broker, or additional frameworks.
+- Principle 12 — Minimal Dependencies: session-spawner imports `mcp`, `aiohttp`, stdlib only. remote-worker imports `fastapi`, `uvicorn`, `pydantic`, stdlib only.
 
-## Architecture Adherence
+---
 
-**session-spawner MCP server** (`mcp/session-spawner/server.py`): All five tools from architecture section 3 are present and dispatched in `call_tool()`. Depth tracking, concurrency limiting, safe-root enforcement, and role loading all confirmed. `list_remote_workers` now forwards `max_jobs` at line 690, closing cycle-7 deviation D1.
+## Undocumented Additions (carried forward, unchanged risk)
 
-**remote-worker HTTP daemon** (`mcp/remote-worker/server.py`): All five REST endpoints implemented with correct HTTP methods and status codes. All five job states implemented. API key authentication middleware in place. `proc.terminate()` guarded with `try/except (ProcessLookupError, OSError)` at lines 288–291, closing cycle-7 deviation MD3. `--cwd` flag passed to `claude` CLI at line 362. `FileNotFoundError` caught and recorded as structured job failure at lines 379–384.
+- U1: `max_depth` input parameter on spawn_session — Risk: Low (server-side clamp enforced)
+- U2: `output_format` input parameter on spawn_session — Risk: Low (defaults to json)
+- U3: `team_name` input parameter on spawn_session — Risk: Low (observational only)
+- U4: `exec_instructions` input parameter on spawn_session — Risk: Medium (modifies child prompt)
+- U5: `OUTPOST_LOG_FILE` logging — Risk: Low (opt-in, no effect when unset)
+- U6: `OUTPOST_ROLES_FILE` user role override — Risk: Low (extends, does not replace built-in roles)
 
-**Role definitions** (`mcp/roles/default-roles.json`): All four architecture-specified roles present. Static JSON loaded at startup per constraint 10.
+---
 
-**Manager agent** (`agents/manager.md`): Present per architecture section 1.
+## Summary
 
-**Architecture section 8 configuration table**: `IDEATE_WORKER_MAX_JOBS` row added, closing cycle-7 deviation MD4.
-
-**Undocumented additions** (U1–U6, carried forward from cycle 7, no new additions in cycle 8): `max_depth`, `output_format`, `team_name`, `exec_instructions` inputs on `spawn_session`; `OUTPOST_LOG_FILE` logging; `OUTPOST_ROLES_FILE` user role override. All are backward-compatible and do not conflict with architecture-specified interfaces. User explicitly deferred architecture documentation to the next refinement cycle.
-
-## Unimplemented Spec Items
-
-None.
-
-All architecture-specified components, interfaces, REST endpoints, job states, roles, environment variables, error handling behaviors, and enforcement rules are present in the implementation. Cycle-8 work items 028–032 closed all three open deviations from cycle 7 without introducing new gaps.
+Implementation is fully adherent to architecture and guiding principles as documented. Three pre-existing deviations (D1–D3) are acknowledged and accepted. Six undocumented additions (U1–U6) carry forward with unchanged risk assessments. No unmet acceptance criteria. All 12 guiding principles are satisfied.

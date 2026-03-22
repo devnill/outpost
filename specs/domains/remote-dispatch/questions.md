@@ -115,8 +115,9 @@
 - **Question**: WI-026 added `IDEATE_WORKER_MAX_JOBS` to the remote-worker README and health schema in architecture.md, but the architecture.md Section 8 configuration env var reference table was not updated. Should the env var be added there as well?
 - **Source**: archive/cycles/006/gap-analysis.md (MG1), archive/cycles/006/decision-log.md (OQ-020)
 - **Impact**: The architecture env var table is secondary documentation (README is primary), but completeness is expected. Operators consulting the architecture reference will not find this env var.
-- **Status**: open
-- **Reexamination trigger**: Next documentation or maintenance pass.
+- **Status**: resolved
+- **Resolution**: WI-032 added `IDEATE_WORKER_MAX_JOBS` to architecture.md Section 8 env var table.
+- **Resolved in**: cycle 8
 
 ## Q-17: max_jobs absent from list_remote_workers output
 - **Question**: `_fetch_worker_health` in session-spawner does not forward the `max_jobs` field from the remote-worker `/health` response, despite the field being specified in architecture.md section 3 and available in the worker response. Should `max_jobs` be added to the forwarded fields?
@@ -131,3 +132,87 @@
 - **Impact**: Latent correctness risk if Claude CLI `--cwd` handling ever diverges from process cwd inheritance. False docstring claim amplifies the risk by asserting equivalence that does not exist. Preferred fix: add `"--cwd", record.working_dir` to `cmd` at `mcp/remote-worker/server.py:354`.
 - **Status**: open
 - **Reexamination trigger**: Next code fix pass or Claude CLI behavior change.
+
+## Q-19: ANTHROPIC_API_KEY exposed in process table in container mode
+- **Question**: `_build_container_cmd` passes the API key as `-e ANTHROPIC_API_KEY={value}`, baking the secret into the command list visible via `ps aux` or `/proc/<pid>/cmdline`. Should it use `-e ANTHROPIC_API_KEY` (name only, Docker inherits from host env) instead?
+- **Source**: archive/cycles/008/code-quality.md (S1), archive/cycles/008/decision-log.md (OQ-029)
+- **Impact**: On multi-tenant machines, the Anthropic API key is readable from the process table during any container job execution. Fix is one line: remove the `={value}` suffix.
+- **Status**: resolved
+- **Resolution**: `_build_container_cmd` now passes name-only `-e ANTHROPIC_API_KEY`. Docker inherits the value from the host environment.
+- **Resolved in**: cycle 9
+
+## Q-20: No test for docker stop invocation on cancel of running containerized job
+- **Question**: `cancel_job` calls `subprocess.run(["docker", "stop", container_name])` when `container_name` is set, but no test exercises this path. Should a cancel-path test be added for containerized jobs?
+- **Source**: archive/cycles/008/code-quality.md (S2), archive/cycles/008/decision-log.md (OQ-031)
+- **Impact**: A regression in the docker stop call (wrong name format, wrong timeout, suppressed exceptions) is invisible to the test suite.
+- **Status**: resolved
+- **Resolution**: WI-054 added test coverage for the docker stop cancel path.
+- **Resolved in**: cycle 9
+
+## Q-21: remote-worker README missing all container mode documentation
+- **Question**: Should `mcp/remote-worker/README.md` be updated to document `OUTPOST_AGENT_IMAGE`, `OUTPOST_CONTAINER_RUNTIME`, `OUTPOST_CONTAINER_MEMORY`, `OUTPOST_CONTAINER_CPUS`, Docker prerequisites, and the `ANTHROPIC_API_KEY` forwarding requirement?
+- **Source**: archive/cycles/008/gap-analysis.md (DG1), archive/cycles/008/decision-log.md (OQ-032)
+- **Impact**: Users cannot deploy container mode following the README alone. Missing `ANTHROPIC_API_KEY` note causes silent job failures.
+- **Status**: resolved
+- **Resolution**: WI-052 added complete container mode documentation to the remote-worker README.
+- **Resolved in**: cycle 9
+
+## Q-22: Root README has no mention of Docker sandboxing
+- **Question**: Should `README.md` mention Docker sandboxing as a deployment option, reference the Dockerfile, and name `OUTPOST_AGENT_IMAGE` as the activation variable?
+- **Source**: archive/cycles/008/gap-analysis.md (DG2), archive/cycles/008/decision-log.md (OQ-033)
+- **Impact**: Container sandboxing (the primary cycle 8 feature) is undiscoverable from the project's primary documentation entry point.
+- **Status**: resolved
+- **Resolution**: WI-053 added container sandboxing section to root README.
+- **Resolved in**: cycle 9
+
+## Q-23: No pre-flight check for missing ANTHROPIC_API_KEY in container mode
+- **Question**: Should the server emit an actionable error at job submission time when `OUTPOST_AGENT_IMAGE` is set but `ANTHROPIC_API_KEY` is unset or empty, rather than silently passing an empty key into containers?
+- **Source**: archive/cycles/008/code-quality.md (M2), archive/cycles/008/decision-log.md (OQ-030)
+- **Impact**: Operators who set `OUTPOST_AGENT_IMAGE` without `ANTHROPIC_API_KEY` see opaque auth failures inside containers rather than an immediate configuration error.
+- **Status**: resolved
+- **Resolution**: `create_job` now validates `ANTHROPIC_API_KEY` presence when container mode is active and returns HTTP 500 if absent.
+- **Resolved in**: cycle 9
+
+## Q-24: architecture.md Section 9 does not document ANTHROPIC_API_KEY passthrough
+- **Question**: Should architecture Section 9 describe the `ANTHROPIC_API_KEY` injection into containers? The passthrough is necessary for correct operation but absent from the container lifecycle description.
+- **Source**: archive/cycles/008/spec-adherence.md (U7), archive/cycles/008/decision-log.md (OQ-034)
+- **Impact**: Future reviewers cannot determine from the architecture whether API key injection is intentional behavior.
+- **Status**: partially resolved
+- **Resolution**: READMEs updated to document ANTHROPIC_API_KEY passthrough (WI-052, WI-053). Architecture Section 9 still does not describe it (U7 carried forward).
+- **Resolved in**: cycle 9 (partial)
+
+## Q-25: _evict_terminal_jobs_locked not called in cancel-while-starting path
+- **Question**: Should `_process_job` call `_evict_terminal_jobs_locked()` in the `result is None` (cancel-while-starting sentinel) branch, consistent with all other terminal-state paths?
+- **Source**: archive/cycles/008/code-quality.md (M1), archive/cycles/008/gap-analysis.md (IG1), archive/cycles/008/decision-log.md (OQ-035)
+- **Impact**: Jobs cancelled during Popen initialization count against store capacity without triggering compaction. Minor under normal conditions; accumulates under high cancel-while-starting volume.
+- **Status**: resolved
+- **Resolution**: WI-051 added the missing `_evict_terminal_jobs_locked()` call in the cancel-while-starting path.
+- **Resolved in**: cycle 9
+
+## Q-26: No test for FileNotFoundError when docker binary is absent in container mode
+- **Question**: The existing `FileNotFoundError` test runs with `_agent_image = ""` and only asserts `"claude" in data["error"]`. No test sets `_agent_image` to a non-empty value to exercise the container-mode branch that produces "docker not found on PATH..." error text.
+- **Source**: archive/cycles/009/gap-analysis.md (SG1), archive/cycles/009/decision-log.md (OQ-036)
+- **Impact**: A regression in the container-mode FileNotFoundError branch (wrong error message, wrong status) would not be caught by the test suite.
+- **Status**: open
+- **Reexamination trigger**: Next test pass or container-mode refinement cycle.
+
+## Q-27: POST /jobs API reference table does not list HTTP 500
+- **Question**: The remote-worker README API Reference lists 400 and 401 for `POST /jobs` but not 500. The pre-flight check that produces 500 is documented in prose in the Container Mode section but absent from the reference table.
+- **Source**: archive/cycles/009/gap-analysis.md (SG2), archive/cycles/009/decision-log.md (OQ-037)
+- **Impact**: Callers consulting the API Reference for error-handling code will not find HTTP 500 listed and may treat it as an unexpected server fault rather than a configuration error.
+- **Status**: open
+- **Reexamination trigger**: Next documentation pass.
+
+## Q-28: Container mode integration test bypasses the HTTP layer
+- **Question**: `test_container_mode_uses_docker_command_in_worker` directly enqueues jobs, bypassing `create_job` and the ANTHROPIC_API_KEY pre-flight check. Should a companion integration test submit a container-mode job via `POST /jobs` to exercise the full HTTP path?
+- **Source**: archive/cycles/009/gap-analysis.md (MG1), archive/cycles/009/decision-log.md (OQ-038)
+- **Impact**: A regression in the HTTP handler (e.g., pre-flight check removed or misplaced) would not be caught by the existing container mode integration test.
+- **Status**: open
+- **Reexamination trigger**: Next test pass or container-mode refinement cycle.
+
+## Q-29: Architecture Section 7 error table omits HTTP 500 ANTHROPIC_API_KEY pre-flight condition
+- **Question**: Architecture Section 7 Remote Worker Errors lists only 400 and 401 cases. The HTTP 500 condition added in WI-051 for missing ANTHROPIC_API_KEY in container mode is not represented.
+- **Source**: archive/cycles/009/spec-adherence.md (U8), archive/cycles/009/decision-log.md (OQ-039)
+- **Impact**: Architecture error table is incomplete for container mode error paths.
+- **Status**: open
+- **Reexamination trigger**: Next documentation or architecture pass.

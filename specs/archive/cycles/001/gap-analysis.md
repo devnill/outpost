@@ -1,53 +1,109 @@
-## Verdict: No critical gaps
+# Gap Analysis — Outpost Cycle 1 (New brrr Session)
 
-All cycle 7 significant and minor findings were addressed in cycle 8. One persistent significant gap from the interview remains open pending a user decision; one new minor gap was introduced in cycle 8.
+**Date**: 2026-03-22
+**Scope**: Full project — all source files reviewed. This cycle's work items (WI-043–WI-046) were all test additions and minor bug fixes. Prior cycles addressed core functionality.
 
-## Critical Gaps
+---
 
-None.
+## Missing Requirements from Interview
 
-## Significant Gaps
+### MR1: OUTPOST_TIMEOUT environment variable documented but never implemented
 
-### G1: Filesystem-based session state not implemented — user decision still pending
+- **Interview reference**: Session 1 — "Timeout enforcement: Every session has a timeout." Architecture Section 8 lists `OUTPOST_TIMEOUT` with annotation "*(not implemented)*".
+- **Gap**: The variable does not exist in code. D-11 settled per-call timeout as the final design. The table row is misleading.
+- **Severity**: Minor
+- **Recommendation**: Remove the row from architecture.md Section 8. D-11 is the decision record. One-line deletion.
 
-- **Missing**: A binding resolution to the open question (Q-4 in `specs/domains/session-lifecycle/questions.md`) of whether `_session_registry` should write to disk by default. The interview (Session 1, key design decision #1) states: "Filesystem state: All session tracking uses files, not in-memory state." The current implementation uses an in-memory Python list (`_session_registry` in `mcp/session-spawner/server.py:1195`) with opt-in JSONL disk writing behind `OUTPOST_LOG_FILE`.
-- **Impact**: On server restart, all session history is lost. The manager agent's `artifact_dir/status/session-registry.json` input contract cannot be satisfied by the current implementation. Seven cycles have passed without this decision being put to the user.
-- **Evidence**: `specs/domains/session-lifecycle/questions.md` Q-4 open since cycle 2. `specs/domains/session-lifecycle/decisions.md` D-8 marks it provisional. Architecture.md Guiding Principle 2 ("Explicit State Management") and Constraint 4 ("Filesystem-Based State") both call for durable state. Prior gap analyses in cycles 1 and 7 both deferred without user input.
+### MR2: Session registry violates filesystem-state constraint by default
 
-## Minor Gaps
+- **Interview reference**: Session 1 — "Filesystem state: All session tracking uses files." Guiding principle 2, constraint C4.
+- **Current state**: `_session_registry` is `collections.deque(maxlen=1000)` in process memory. JSONL disk logging only active when `OUTPOST_LOG_FILE` is set; no default path.
+- **Gap**: The filesystem-state requirement is not met by default. Session history is lost on restart unless operator configures `OUTPOST_LOG_FILE`. Deferred through six consecutive cycles.
+- **Severity**: Minor (open question OQ-025 — explicitly deferred by user in 2026-03-21 refinement interview)
+- **Recommendation**: Defer — user decision required to either (A) add a default `OUTPOST_LOG_FILE` path, or (B) amend constraint C4 to accept in-memory design. Carry forward as OQ-025.
 
-### G2: `FileNotFoundError` response in session-spawner is missing required schema fields
+---
 
-- **Missing**: `output`, `session_id`, and `duration_ms` fields in the `FileNotFoundError` error response from `spawn_session`. All other error return paths in `call_tool` (prompt-too-large, invalid working-dir, safe-root violation, depth-exceeded) return a consistent six-field object: `output`, `exit_code`, `session_id`, `duration_ms`, `error`. The `FileNotFoundError` path introduced in cycle 8 (`mcp/session-spawner/server.py` lines 485–489) returns only `error` and `exit_code`.
-- **Impact**: Any caller that destructures the spawn_session response expecting `output`, `session_id`, or `duration_ms` will receive `None`/`KeyError` on the FileNotFoundError path. Orchestrators that log `duration_ms` will silently skip timing on this error case.
-- **Evidence**: `mcp/session-spawner/server.py` lines 485–489 vs. lines 345–362 (prompt-too-large reference path showing the full six-field shape).
+## Unhandled Edge Cases
 
-### G3: `cancel_remote_job` success response `worker_name` field undocumented in session-spawner README
+### EC1: git diff output has no size cap
 
-- **Missing**: The `worker_name` field in the `cancel_remote_job` success response. `mcp/session-spawner/README.md` shows `{"job_id": "...", "status": "cancelled"}` but the implementation at `mcp/session-spawner/server.py` line 990 returns `{"job_id": job_id, "status": "cancelled", "worker_name": w["name"]}`.
-- **Impact**: Callers reading the README will not know `worker_name` is available. No behavioral impact; implementation is richer than documented.
-- **Evidence**: First identified as II1 in cycle 7 gap analysis, deferred.
+- **Component**: `mcp/remote-worker/server.py` — `_capture_git_diff`
+- **Scenario**: Job runs on a large workspace; `git diff HEAD` produces hundreds of KB. Full output stored and returned verbatim. No truncation.
+- **Severity**: Minor
+- **Recommendation**: Defer — uncommon in target use case. Apply same 50KB boundary as session output if this becomes a problem.
 
-### G4: Git diff output in remote-worker has no size limit
+### EC2: OUTPOST_REMOTE_WORKERS parse failure indistinguishable from unset at tool-call time
 
-- **Missing**: A byte cap on `_capture_git_diff` output. The full `git diff HEAD` stdout is stored in `JobRecord.git_diff` and returned verbatim in `GET /jobs/{job_id}` responses and `poll_remote_job` results. No truncation exists.
-- **Impact**: A large workspace change produces a diff that can exhaust remote-worker memory and overflow the MCP response context. Uncommon in the target use case but possible with generated files or large binary assets.
-- **Evidence**: `mcp/remote-worker/server.py` lines 332–347. First identified as EC3 in cycle 7, deferred as uncommon.
+- **Component**: `mcp/session-spawner/server.py`
+- **Scenario**: Variable set but malformed JSON; server logs warning and sets `_remote_workers = []`. Tool calls return "No remote workers configured." — same message as variable not set.
+- **Severity**: Minor
+- **Recommendation**: Defer — startup log makes root cause diagnosable.
 
-### G5: `_session_registry` grows without bound in long-lived session-spawner processes
+---
 
-- **Missing**: An eviction policy for `_session_registry`. Every `spawn_session` call appends one entry and nothing removes entries. `_print_status_table` reprints the full list after every call.
-- **Impact**: Memory growth and increasingly large stderr table output in long-running server processes. Bounded in practice by Claude Code session lifetime, but not by design.
-- **Evidence**: `mcp/session-spawner/server.py` line 572 (`_session_registry.append(entry)`); no eviction path exists. First identified as EC4 in cycle 7, deferred.
+## Incomplete Integrations
 
-### G6: No integration test for `list_remote_workers` against a real uvicorn instance
+### II1: No full MCP handler round-trip integration test
 
-- **Missing**: An integration test exercising `_handle_list_remote_workers` against the live uvicorn server in the `worker_server` fixture. The five existing tests in `mcp/test_integration.py` cover job CRUD and role propagation but not the health endpoint path.
-- **Impact**: The `max_jobs` field forwarding added in cycle 8 (WI-031) is untested end-to-end. `_fetch_worker_health` is unit-tested in isolation; the full chain from `list_remote_workers` MCP tool through `GET /health` to response is not covered.
-- **Evidence**: `mcp/test_integration.py` — five tests, none call `_handle_list_remote_workers`. First identified as II2 in cycle 7, deferred.
+- **Interface**: `_handle_spawn_remote_session` → HTTP POST → worker executes → `_handle_poll_remote_job` → HTTP GET → result
+- **Gap**: `test_job_lifecycle_running_to_completed` (WI-042) submits directly to `job_queue`, bypassing the MCP handler path. No test exercises the complete async round-trip through both MCP handlers.
+- **Severity**: Minor
+- **Recommendation**: Defer — component-level tests are thorough. Full end-to-end test requires a real or mock claude binary.
 
-## Open Questions
+### II2: No integration test for `list_remote_workers` against a live uvicorn instance
 
-**OQ-025 (deferred by user in 2026-03-21 refinement interview)**: In-memory session registry vs. filesystem-state design decision. Requires a binding decision: either add a default `OUTPOST_LOG_FILE` path to make state durable by default, or formally update the interview record and constraints to accept the in-memory design. Until resolved, the manager agent's `session-registry.json` input contract remains unsatisfiable.
+- **Gap**: `mcp/test_integration.py` does not exercise the `GET /health` path end-to-end.
+- **Severity**: Minor
+- **Recommendation**: Defer — individual units tested.
 
-**Undocumented `spawn_session` architecture additions (deferred by user in 2026-03-21 refinement interview)**: `max_depth`, `output_format`, `team_name`, `exec_instructions`, `OUTPOST_LOG_FILE`, and `OUTPOST_ROLES_FILE` are absent from `architecture.md` Section 3 (`spawn_session` tool definition). All are implemented and documented in the session-spawner README. User explicitly deferred architecture documentation to the next refinement cycle.
+---
+
+## Missing Infrastructure
+
+### MI1: Architecture Section 8 lists OUTPOST_TIMEOUT as "not implemented" — row should be removed
+
+- **Gap**: "not implemented" annotation in the config table misleads operators who try to set the variable.
+- **Severity**: Minor
+- **Recommendation**: Address now — remove the row. D-11 settled per-call timeout as the final design.
+
+### MI2: No graceful shutdown for local session subprocesses
+
+- **Gap**: When MCP server is killed, active `spawn_session` subprocesses become orphaned. No SIGTERM handler terminates them before exit.
+- **Severity**: Minor
+- **Recommendation**: Defer — OS process tree cleanup handles this in most deployments.
+
+---
+
+## Implicit Requirements
+
+### IR1: FileNotFoundError response from spawn_session inconsistent schema
+
+- **Expectation**: All `spawn_session` error paths return `{output, exit_code, session_id, duration_ms, error, token_usage}`.
+- **Current state**: `FileNotFoundError` path (lines ~487-490 of session-spawner server.py) returns only `{error, exit_code}` — missing `output`, `session_id`, `duration_ms`.
+- **Gap**: Callers destructuring the full schema encounter `None` or `KeyError` on this path.
+- **Severity**: Minor
+- **Recommendation**: Address now — add `output: ""`, `session_id: ""`, `duration_ms: 0`, `token_usage: None` to the FileNotFoundError return dict. Introduced by WI-029, small oversight.
+
+---
+
+## Open Questions (carried forward)
+
+**OQ-025**: In-memory session registry vs. filesystem-state design decision. The interview and constraint C4 require filesystem-only state. Current implementation uses in-memory `_session_registry` with opt-in JSONL. Requires binding user decision. Six cycles deferred.
+
+**Undocumented architecture additions**: `max_depth`, `output_format`, `team_name`, `exec_instructions`, `OUTPOST_LOG_FILE`, `OUTPOST_ROLES_FILE` absent from architecture sections 3 and 8. Deferred by user in 2026-03-21 refinement interview.
+
+---
+
+## Summary
+
+| ID | Title | Severity | Recommendation |
+|----|-------|----------|----------------|
+| MR2 | Session registry violates filesystem-state constraint by default (OQ-025) | Minor | Defer (user-deferred design decision) |
+| IR1 | FileNotFoundError response missing standard schema fields | Minor | Address now |
+| MR1 / MI1 | OUTPOST_TIMEOUT "not implemented" row in architecture | Minor | Remove from architecture |
+| EC1 | git diff output unbounded | Minor | Defer |
+| EC2 | REMOTE_WORKERS parse failure indistinguishable from unset | Minor | Defer |
+| II1 | No full MCP handler round-trip integration test | Minor | Defer |
+| II2 | No list_remote_workers integration test | Minor | Defer |
+| MI2 | No graceful shutdown for local subprocesses | Minor | Defer |

@@ -1,53 +1,50 @@
-# Change Plan — Outpost Cycle 8
+# Change Plan — Cycle 9
 
 ## Trigger
 
-Cycle 7 capstone review (2026-03-21). No critical or significant findings. Five work items address long-deferred minor code fixes and documentation gaps that accumulated across cycles 3–7. OQ-025 (in-memory session registry design decision) deferred to a future refinement.
+Cycle 8 capstone review (2026-03-22). Four significant findings plus one architect observation require fixes before container mode is safe for production deployment.
 
 ## What Is Changing
 
-**Code fixes (WI-028 through WI-031):**
-- `proc.terminate()` race condition in `cancel_job` — HTTP 500 risk on concurrent process exit
-- `FileNotFoundError` handling in both servers — actionable error message when `claude` binary not on PATH
-- conftest `sys.modules` key collision — rename keys to prevent module shadowing between test suites
-- `--cwd` flag in `_run_claude_job` — close behavioral divergence between session-spawner and remote-worker subprocess invocation
-- `max_jobs` field in `list_remote_workers` output — forward available field per architecture spec
+### Code (mcp/remote-worker/server.py)
+1. **ANTHROPIC_API_KEY secret exposure** (S1): `_build_container_cmd` currently passes the key value as `-e ANTHROPIC_API_KEY={value}`, embedding it in the process command line visible via `ps aux`. Fix: use `-e ANTHROPIC_API_KEY` (name-only — Docker inherits from host env without embedding in cmdline).
+2. **ANTHROPIC_API_KEY pre-flight check** (M2): `create_job` does not validate that `ANTHROPIC_API_KEY` is set when container mode is active. Add a 500 check at job submission time so operators get an actionable error immediately rather than silent job failures inside containers.
+3. **Blocking docker stop in async event loop** (AO1): `cancel_job` calls `subprocess.run(["docker", "stop", ...])` synchronously on the async event loop, blocking for up to 15s. Fix: wrap in `asyncio.to_thread`.
+4. **Missing eviction call in cancel-while-starting path** (M1): `_process_job`'s `result is None` branch does not call `_evict_terminal_jobs_locked()`, unlike every other terminal path. One-line addition.
 
-**Documentation (WI-032):**
-- Root README: add `cancel_remote_job` to tool list, add config cross-reference to component READMEs
-- CLAUDE.md: correct stale `requirements.txt` path
-- architecture.md Section 8: add `IDEATE_WORKER_MAX_JOBS` row
+### Documentation (mcp/remote-worker/README.md)
+5. **Remote-worker README missing container mode** (DG1): Env var table missing all four container vars, Prerequisites section missing Docker, no mention of ANTHROPIC_API_KEY forwarding requirement.
+
+### Documentation (README.md)
+6. **Root README missing container sandboxing** (DG2): The primary project entry point has no reference to Docker sandboxing, the Dockerfile, or `OUTPOST_AGENT_IMAGE`.
+
+### Tests (mcp/remote-worker/test_server.py)
+7. **Missing docker stop cancel test** (S2): No test verifies that `docker stop job-{id}` is called when cancelling a running containerized job.
+
+### Tests (mcp/test_integration.py)
+8. **Missing container integration test** (M3): No integration test exercises the container code path through the worker's processing loop.
 
 ## What Is NOT Changing
 
-- Architecture — no structural changes to either server
-- Guiding principles — all unchanged
-- Role system, job lifecycle, dispatch model — unchanged
-- OQ-025 (in-memory session registry) — explicitly deferred
+- session-spawner (`mcp/session-spawner/server.py`)
+- Architecture document (`specs/plan/architecture.md`)
+- Role system, depth limits, concurrency model
+- All other MCP tools or their interfaces
+- Dockerfile (correct as-is)
+- Container security flags in `_build_container_cmd`
 
 ## Scope Boundary
 
-Changes are confined to:
-- `mcp/remote-worker/server.py` — proc.terminate guard, FileNotFoundError handling, --cwd flag
-- `mcp/session-spawner/server.py` — FileNotFoundError handling, max_jobs forwarding
-- `mcp/remote-worker/test_server.py` — new tests for WI-028, WI-029, WI-031
-- `mcp/session-spawner/test_server.py` — new tests for WI-029, WI-031
-- `mcp/remote-worker/conftest.py` — key rename
-- `mcp/session-spawner/conftest.py` — key rename
-- `README.md` — documentation
-- `CLAUDE.md` — documentation
-- `specs/plan/architecture.md` — one table row
+This cycle fixes the cycle 8 review findings only. Out of scope: undocumented `spawn_session` additions (U1–U6), `--read-only` / `--network none` container hardening suggestions, daemon containerization, multi-tool abstraction for docker alternatives.
 
 ## Expected Impact
 
-121 tests continue to pass. New tests added for FileNotFoundError, proc.terminate race, --cwd verification, and max_jobs forwarding. All changes are backward-compatible — no interface changes, no new dependencies.
+All changes are backward-compatible. No changes to API contracts, job lifecycle states, or MCP tool schemas. The `ANTHROPIC_API_KEY` pre-flight check returns HTTP 500 only when container mode is active AND the key is unset — deployments without `OUTPOST_AGENT_IMAGE` are unaffected.
 
 ## Work Items
 
-| ID | Title | Complexity |
-|----|-------|------------|
-| 028 | Fix proc.terminate() race in cancel_job | easy |
-| 029 | Handle FileNotFoundError for missing claude binary | easy |
-| 030 | Fix conftest sys.modules key collision | easy |
-| 031 | Add --cwd to _run_claude_job; add max_jobs to list_remote_workers output | easy |
-| 032 | Documentation sweep (cycle 7 minor gaps) | easy |
+- WI-051: Fix server.py (API key secret, pre-flight check, async docker stop, eviction call)
+- WI-052: Update remote-worker README with container mode documentation
+- WI-053: Update root README with container sandboxing section
+- WI-054: Add docker stop cancel path test
+- WI-055: Add container mode integration test

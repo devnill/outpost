@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "outpost-remote-worker"
-version = "0.1.0"
+version = "0.2.0"
 description = "Remote worker daemon for outpost — accepts jobs via REST API and executes them using the claude CLI"
 requires-python = ">=3.10"
 dependencies = [

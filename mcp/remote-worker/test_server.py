@@ -10,7 +10,7 @@ import datetime
 import logging
 import os
 import subprocess
-from unittest.mock import patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 import pytest_asyncio
@@ -122,13 +122,21 @@ async def _execute_job(job_id: str):
 async def _reset_globals():
     """Reset module-level state before each test to prevent cross-test contamination."""
     worker.job_store.clear()
-    worker.job_queue = asyncio.Queue()
-    worker._max_concurrency = worker.DEFAULT_MAX_CONCURRENCY
     worker._max_jobs = 1000
+    worker._max_concurrency = worker.DEFAULT_MAX_CONCURRENCY
+    worker.job_queue = asyncio.Queue(maxsize=worker._max_jobs)
+    worker._agent_image = ""
+    worker._container_runtime = ""
+    worker._container_memory = "4g"
+    worker._container_cpus = "2"
     yield
     worker.job_store.clear()
-    worker.job_queue = asyncio.Queue()
     worker._max_jobs = 1000
+    worker.job_queue = asyncio.Queue(maxsize=worker._max_jobs)
+    worker._agent_image = ""
+    worker._container_runtime = ""
+    worker._container_memory = "4g"
+    worker._container_cpus = "2"
 
 
 @pytest.fixture
@@ -236,6 +244,29 @@ async def test_create_job_prompt_exactly_at_limit(client, auth_headers, tmp_work
         headers=auth_headers,
     )
     assert resp.status_code == 201
+
+
+# ---------------------------------------------------------------------------
+# 3b. POST /jobs — queue full returns 429
+# ---------------------------------------------------------------------------
+
+
+async def test_create_job_queue_full_returns_429(client, auth_headers, tmp_working_dir):
+    """POST /jobs returns 429 when the job queue is full."""
+    # Replace the queue with a zero-capacity queue and fill it
+    worker.job_queue = asyncio.Queue(maxsize=1)
+    worker.job_queue.put_nowait("fake-job-id")  # fill it to capacity
+
+    resp = await client.post(
+        "/jobs",
+        json={"prompt": "hello", "working_dir": tmp_working_dir},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 429
+    data = resp.json()
+    assert "full" in data["detail"]
+    # Rollback: job_store must be empty (the orphan entry was removed)
+    assert len(worker.job_store) == 0
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +656,26 @@ async def test_create_job_within_base_dir_accepted(auth_headers, tmp_path):
     assert resp.status_code == 201
 
 
+async def test_create_job_container_mode_missing_api_key_returns_500(
+    monkeypatch, auth_headers, tmp_path
+):
+    """POST /jobs returns 500 when container mode is active but ANTHROPIC_API_KEY is not set."""
+    working_dir = str(tmp_path)
+    monkeypatch.setattr(worker, "_agent_image", "outpost-agent:latest")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("IDEATE_WORKER_API_KEY", TEST_API_KEY)
+    async with AsyncClient(
+        transport=ASGITransport(app=worker.app), base_url="http://test"
+    ) as ac:
+        resp = await ac.post(
+            "/jobs",
+            json={"prompt": "hello", "working_dir": working_dir},
+            headers=auth_headers,
+        )
+    assert resp.status_code == 500
+    assert "ANTHROPIC_API_KEY" in resp.json()["detail"]
+
+
 async def test_failed_job_returned_in_get(client, auth_headers, tmp_working_dir):
     """A job that exits with non-zero code has status 'failed' with error field set."""
 
@@ -974,6 +1025,74 @@ async def test_lifespan_sets_max_jobs_from_env(api_key_env):
             assert worker._max_jobs == 50
 
 
+# ---------------------------------------------------------------------------
+# 20. GET /jobs — timestamp fields in list response
+# ---------------------------------------------------------------------------
+
+
+async def test_list_jobs_completed_has_started_at_and_completed_at(
+    client, auth_headers, tmp_working_dir
+):
+    """GET /jobs includes started_at and completed_at for completed jobs."""
+    resp = await client.post(
+        "/jobs",
+        json={"prompt": "timestamps test", "working_dir": tmp_working_dir},
+        headers=auth_headers,
+    )
+    job_id = resp.json()["job_id"]
+
+    def mock_popen_factory(cmd, stdout=None, stderr=None, text=False, cwd=None, **kwargs):
+        mock = MockPopen(cmd, stdout=stdout, stderr=stderr, text=text, cwd=cwd, **kwargs)
+        if cmd[0] == "git":
+            mock._returncode = 0
+        elif cmd[0] == "claude":
+            mock._stdout_data = '{"result": "ok"}'
+            mock._returncode = 0
+        return mock
+
+    with patch("subprocess.Popen", side_effect=mock_popen_factory):
+        await _execute_job(job_id)
+
+    resp = await client.get("/jobs", headers=auth_headers)
+    jobs = resp.json()
+    matched = [j for j in jobs if j["job_id"] == job_id]
+    assert len(matched) == 1
+    entry = matched[0]
+    assert entry["status"] == "completed"
+    assert "started_at" in entry, "completed job must have started_at in list response"
+    assert entry["started_at"] is not None
+    assert "completed_at" in entry, "completed job must have completed_at in list response"
+    assert entry["completed_at"] is not None
+
+
+async def test_list_jobs_running_has_started_at_but_no_completed_at(
+    client, auth_headers, tmp_working_dir
+):
+    """GET /jobs includes started_at for running jobs but omits completed_at."""
+    resp = await client.post(
+        "/jobs",
+        json={"prompt": "running timestamps", "working_dir": tmp_working_dir},
+        headers=auth_headers,
+    )
+    job_id = resp.json()["job_id"]
+
+    # Manually transition to running state with a known started_at
+    async with worker.job_store_lock:
+        record = worker.job_store[job_id]
+        record.status = "running"
+        record.started_at = "2026-01-01T00:00:00.000Z"
+
+    resp = await client.get("/jobs", headers=auth_headers)
+    jobs = resp.json()
+    matched = [j for j in jobs if j["job_id"] == job_id]
+    assert len(matched) == 1
+    entry = matched[0]
+    assert entry["status"] == "running"
+    assert "started_at" in entry, "running job must have started_at in list response"
+    assert entry["started_at"] == "2026-01-01T00:00:00.000Z"
+    assert "completed_at" not in entry, "running job must not have completed_at in list response"
+
+
 async def test_lifespan_max_jobs_invalid_value_falls_back_to_default(api_key_env):
     """Lifespan falls back to 1000 when IDEATE_WORKER_MAX_JOBS is not a valid integer."""
     with patch.dict(os.environ, {"IDEATE_WORKER_MAX_JOBS": "bad"}):
@@ -982,7 +1101,7 @@ async def test_lifespan_max_jobs_invalid_value_falls_back_to_default(api_key_env
 
 
 # ---------------------------------------------------------------------------
-# 20. Startup warns when IDEATE_WORKER_API_KEY is not set
+# 21. Startup warns when IDEATE_WORKER_API_KEY is not set
 # ---------------------------------------------------------------------------
 
 
@@ -1098,3 +1217,310 @@ async def test_run_claude_job_file_not_found_marks_job_failed(client, auth_heade
     # No raw Python traceback or exception class name
     assert "FileNotFoundError" not in data["error"]
     assert "Traceback" not in data["error"]
+    assert data["completed_at"] is not None
+
+
+def test_capture_git_diff_timeout_kills_process_and_returns_none(tmp_path):
+    """_capture_git_diff kills and reaps the subprocess on TimeoutExpired, then returns None."""
+    mock_proc = MagicMock()
+    # First communicate() call raises TimeoutExpired; second (after kill) returns normally.
+    mock_proc.communicate.side_effect = [
+        subprocess.TimeoutExpired(cmd=["git", "diff", "HEAD"], timeout=30),
+        ("", ""),
+    ]
+
+    with patch("subprocess.Popen", return_value=mock_proc):
+        result = worker._capture_git_diff(str(tmp_path))
+
+    assert result is None
+    # Verify kill-before-communicate ordering and call counts
+    assert mock_proc.mock_calls == [
+        call.communicate(timeout=30),
+        call.kill(),
+        call.communicate(),
+    ]
+
+
+# ---------------------------------------------------------------------------
+# WI-044. Cancel path tests: CF2, CF3, CF5
+# ---------------------------------------------------------------------------
+
+
+async def test_cf2_worker_skips_cancelled_queued_job(tmp_working_dir):
+    """
+    CF2: Worker skips a job that was cancelled while still in the queue.
+
+    When a job record has status='cancelled' at the time the worker dequeues it,
+    _process_job must NOT be called and the record must retain status='cancelled'.
+    """
+    with patch.dict(os.environ, {"IDEATE_WORKER_API_KEY": TEST_API_KEY}):
+        request = worker.JobRequest(prompt="cancel-while-queued", working_dir=tmp_working_dir)
+        job_id = "cf2-test-job-id"
+        record = worker.JobRecord(job_id, request)
+        record.status = "cancelled"
+
+        worker.job_store[job_id] = record
+        worker.job_queue.put_nowait(job_id)
+
+        with patch.object(worker, "_process_job") as mock_process_job:
+            task = asyncio.create_task(worker._worker(0))
+            await asyncio.sleep(0.05)
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+        mock_process_job.assert_not_called()
+        assert worker.job_store[job_id].status == "cancelled"
+
+
+async def test_cf3_process_job_cancel_while_starting_sentinel(tmp_working_dir):
+    """
+    CF3: _process_job handles the cancel-while-starting sentinel (None from _run_claude_job).
+
+    When _run_claude_job returns None (cancel-while-starting), _process_job must
+    set duration_ms but must NOT set completed_at, must NOT change status away from
+    'cancelled', and must NOT set exit_code.
+    """
+    request = worker.JobRequest(prompt="cancel-while-starting", working_dir=tmp_working_dir)
+    job_id = "cf3-test-job-id"
+    record = worker.JobRecord(job_id, request)
+    record.status = "cancelled"
+
+    worker.job_store[job_id] = record
+
+    with patch.object(worker, "_run_claude_job", return_value=None):
+        await worker._process_job(record)
+
+    assert record.duration_ms is not None
+    assert record.status == "cancelled"
+    assert record.completed_at is None
+    assert record.exit_code is None
+
+
+async def test_cf5_cancel_running_job_kill_after_terminate_timeout(client, auth_headers, tmp_working_dir):
+    """
+    CF5: cancel_job calls proc.kill() after proc.wait() exceeds 2s timeout.
+
+    When terminate() succeeds but wait() does not return within 2s,
+    the cancel_job endpoint must call proc.kill() and still return 204.
+    """
+    resp = await client.post(
+        "/jobs",
+        json={"prompt": "long running", "working_dir": tmp_working_dir},
+        headers=auth_headers,
+    )
+    assert resp.status_code == 201
+    job_id = resp.json()["job_id"]
+
+    mock_proc = MagicMock()
+    mock_proc.terminate.return_value = None
+    mock_proc.wait.return_value = 0
+
+    async with worker.job_store_lock:
+        worker.job_store[job_id].status = "running"
+        worker.job_store[job_id].process = mock_proc
+
+    with patch.object(worker.asyncio, "wait_for", side_effect=asyncio.TimeoutError):
+        resp = await client.delete(f"/jobs/{job_id}", headers=auth_headers)
+
+    assert resp.status_code == 204
+    mock_proc.terminate.assert_called_once()
+    mock_proc.kill.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# WI-049. Containerized job execution
+# ---------------------------------------------------------------------------
+
+
+def _make_job_record(tmp_working_dir, permission_mode="acceptEdits"):
+    """Create a JobRecord directly for use in synchronous _run_claude_job tests."""
+    request = worker.JobRequest(
+        prompt="test prompt",
+        working_dir=tmp_working_dir,
+        permission_mode=permission_mode,
+    )
+    return worker.JobRecord("test-job-id", request)
+
+
+def _make_mock_proc(returncode=0, stdout='{"result": "ok"}', stderr=""):
+    """Create a mock subprocess.Popen return value."""
+    mock_proc = MagicMock()
+    mock_proc.returncode = returncode
+    mock_proc.communicate.return_value = (stdout, stderr)
+    return mock_proc
+
+
+def test_container_mode_uses_docker_run(tmp_path, monkeypatch):
+    """
+    When _agent_image is set, the command passed to subprocess.Popen starts with
+    'docker' and includes 'run' (not 'claude' as the first element).
+    """
+    monkeypatch.setattr(worker, "_agent_image", "outpost-agent:latest")
+    record = _make_job_record(str(tmp_path))
+
+    mock_proc = _make_mock_proc()
+    with patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+        worker._run_claude_job(record)
+
+    cmd = mock_popen.call_args[0][0]
+    assert cmd[0] == "docker", f"Expected 'docker' as first element, got {cmd[0]!r}"
+    assert "run" in cmd, "'run' must be in the command list"
+    assert cmd[0] != "claude", "Must not use 'claude' as first element in container mode"
+
+
+def test_container_mode_includes_security_opts(tmp_path, monkeypatch):
+    """
+    Container invocation includes '--cap-drop', 'ALL', '--security-opt', and
+    'no-new-privileges' in the command list.
+    """
+    monkeypatch.setattr(worker, "_agent_image", "outpost-agent:latest")
+    record = _make_job_record(str(tmp_path))
+
+    mock_proc = _make_mock_proc()
+    with patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+        worker._run_claude_job(record)
+
+    cmd = mock_popen.call_args[0][0]
+    assert "--cap-drop" in cmd, "'--cap-drop' must be in the command"
+    cap_drop_index = cmd.index("--cap-drop")
+    assert cmd[cap_drop_index + 1] == "ALL", f"Expected 'ALL' after '--cap-drop', got {cmd[cap_drop_index + 1]!r}"
+    assert "--security-opt" in cmd, "'--security-opt' must be in the command"
+    security_opt_index = cmd.index("--security-opt")
+    assert cmd[security_opt_index + 1] == "no-new-privileges", (
+        f"Expected 'no-new-privileges' after '--security-opt', got {cmd[security_opt_index + 1]!r}"
+    )
+
+
+def test_container_mode_includes_bind_mount(tmp_path, monkeypatch):
+    """
+    Container invocation includes '-v {working_dir}:/workspace' as a bind mount argument.
+    """
+    monkeypatch.setattr(worker, "_agent_image", "outpost-agent:latest")
+    working_dir = str(tmp_path)
+    record = _make_job_record(working_dir)
+
+    mock_proc = _make_mock_proc()
+    with patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+        worker._run_claude_job(record)
+
+    cmd = mock_popen.call_args[0][0]
+    assert "-v" in cmd, "'-v' must be in the command for bind mount"
+    v_index = cmd.index("-v")
+    expected_mount = f"{working_dir}:/workspace"
+    assert cmd[v_index + 1] == expected_mount, (
+        f"Expected bind mount '{expected_mount}', got '{cmd[v_index + 1]}'"
+    )
+
+
+def test_container_mode_uses_dangerously_skip_permissions(tmp_path, monkeypatch):
+    """
+    Container invocation uses '--permission-mode dangerouslySkipPermissions' regardless
+    of the value in record.permission_mode.
+    """
+    monkeypatch.setattr(worker, "_agent_image", "outpost-agent:latest")
+    # Set a different permission_mode on the record to verify it is overridden
+    record = _make_job_record(str(tmp_path), permission_mode="acceptEdits")
+
+    mock_proc = _make_mock_proc()
+    with patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+        worker._run_claude_job(record)
+
+    cmd = mock_popen.call_args[0][0]
+    assert "--permission-mode" in cmd, "'--permission-mode' must be in the command"
+    pm_index = cmd.index("--permission-mode")
+    assert cmd[pm_index + 1] == "dangerouslySkipPermissions", (
+        f"Expected 'dangerouslySkipPermissions', got {cmd[pm_index + 1]!r}"
+    )
+
+
+def test_no_container_mode_uses_claude(tmp_path, monkeypatch):
+    """
+    When _agent_image is NOT set, the command passed to subprocess.Popen starts
+    with 'claude' (backward compatibility).
+    """
+    monkeypatch.setattr(worker, "_agent_image", "")
+    record = _make_job_record(str(tmp_path))
+
+    mock_proc = _make_mock_proc()
+    with patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+        worker._run_claude_job(record)
+
+    cmd = mock_popen.call_args[0][0]
+    assert cmd[0] == "claude", f"Expected 'claude' as first element, got {cmd[0]!r}"
+
+
+def test_container_mode_custom_runtime(tmp_path, monkeypatch):
+    """
+    When OUTPOST_CONTAINER_RUNTIME is set to 'runsc', the container invocation
+    includes '--runtime' and 'runsc' in the command list.
+    """
+    monkeypatch.setattr(worker, "_agent_image", "outpost-agent:latest")
+    monkeypatch.setattr(worker, "_container_runtime", "runsc")
+    record = _make_job_record(str(tmp_path))
+
+    mock_proc = _make_mock_proc()
+    with patch("subprocess.Popen", return_value=mock_proc) as mock_popen:
+        worker._run_claude_job(record)
+
+    cmd = mock_popen.call_args[0][0]
+    assert "--runtime" in cmd, "'--runtime' must be in the command when runtime is set"
+    runtime_index = cmd.index("--runtime")
+    assert cmd[runtime_index + 1] == "runsc", (
+        f"Expected 'runsc' as runtime value, got {cmd[runtime_index + 1]!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# WI-054. Cancel path: docker stop called when container_name is set
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_cancel_running_container_job_calls_docker_stop(monkeypatch, tmp_path):
+    """cancel_job issues docker stop when container_name is set on a running job."""
+    import uuid
+
+    job_id = str(uuid.uuid4())
+    container_name = f"job-{job_id}"
+
+    # Create a running job with container_name set
+    req = worker.JobRequest(prompt="test", working_dir=str(tmp_path))
+    record = worker.JobRecord(job_id, req)
+    record.status = "running"
+    record.container_name = container_name
+
+    # Mock process: terminate() and wait() must not raise
+    mock_proc = MagicMock()
+    mock_proc.wait.return_value = None  # called via asyncio.to_thread(proc.wait)
+    record.process = mock_proc
+
+    async with worker.job_store_lock:
+        worker.job_store[job_id] = record
+
+    # Capture subprocess.run calls (called via asyncio.to_thread in cancel_job)
+    docker_stop_calls = []
+
+    def fake_subprocess_run(cmd, **kwargs):
+        docker_stop_calls.append(list(cmd))
+        return MagicMock(returncode=0)
+
+    monkeypatch.setattr(worker.subprocess, "run", fake_subprocess_run)
+
+    try:
+        with patch.dict(os.environ, {"IDEATE_WORKER_API_KEY": TEST_API_KEY}):
+            async with AsyncClient(
+                transport=ASGITransport(app=worker.app), base_url="http://test"
+            ) as ac:
+                response = await ac.delete(
+                    f"/jobs/{job_id}",
+                    headers={"X-API-Key": TEST_API_KEY},
+                )
+        assert response.status_code == 204
+
+        # Verify docker stop was called with the correct container name
+        assert docker_stop_calls == [["docker", "stop", container_name]], (
+            f"Expected docker stop {container_name!r} call, got: {docker_stop_calls}"
+        )
+    finally:
+        async with worker.job_store_lock:
+            worker.job_store.pop(job_id, None)

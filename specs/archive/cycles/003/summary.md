@@ -1,89 +1,42 @@
-# Review Summary — Cycle 003
+# Review Summary — Outpost Cycle 3 (brrr session)
 
-## Overview
+**Date**: 2026-03-22
+**Cycle**: 3
+**Work items executed**: WI-037, WI-038
 
-Cycle 003 successfully addressed all 6 critical and 4 significant findings from Cycle 002. All 6 work items (012-017) passed incremental review with only minor findings. The Outpost codebase now has 97 passing tests (65 session-spawner + 32 remote-worker) and demonstrates solid code quality with comprehensive test coverage, consistent error handling patterns, and proper resource management.
+## Work Items
 
----
+| ID | Title | Outcome |
+|----|-------|---------|
+| WI-037 | Fix _capture_git_diff subprocess leak on timeout | Pass with rework (M1 ordering assertion fixed) |
+| WI-038 | Bound job_queue with maxsize and HTTP 429 back-pressure | Pass with rework (S1 lifespan queue init + M1 fixture ordering fixed) |
 
-## Critical Findings
+## Review Verdicts
 
-None.
-
----
+| Reviewer | Verdict | Critical | Significant | Minor |
+|----------|---------|----------|-------------|-------|
+| Code quality | Fail | 0 | 2 | 4 |
+| Spec adherence | Pass | 0 | 0 | 0 |
+| Gap analysis | — | 0 | 2 | 7 |
 
 ## Significant Findings
 
-None.
+**Code S1**: TOCTOU race between `job_queue.full()` and `job_queue.put()` in `remote-worker/server.py:201-210`. Both checks can pass simultaneously under concurrent load; second caller blocks on `put()` rather than getting 429. Fix: use `put_nowait` + catch `asyncio.QueueFull`.
 
----
+**Code S2**: `_handle_cancel_remote_job` returns immediately on first connection error (`_status == "error"`) instead of only on 409 conflict. A network failure on any non-owning worker masks the true "not found" result.
 
-## Minor Findings
+**Gap NG1** (elevated from Minor): `(None, 1, msg)` FileNotFoundError sentinel in `_process_job` is structurally indistinguishable from a legitimate zero-stdout exit-1 claude failure, causing misrouting.
 
-### Code Quality
-- **M1**: Duplicated datetime formatting pattern across components — maintenance risk
-- **M2**: Bare `except Exception` in worker error handling could mask unexpected failures
-- **M3**: Version inconsistency — session-spawner (0.4.0) vs remote-worker (0.1.0)
-- **M4**: Comment typo ("Fix 3:" prefix appears to be copy-paste artifact)
-- **M5**: Module-level globals pattern should be documented as intentional
+**Gap CF1** (elevated from Minor): No integration test exercises the `running → completed` lifecycle with a real subprocess. All subprocess calls are mocked.
 
-### Spec Adherence
-- **U1-U3**: Undocumented additions (team_name, exec_instructions, model parameters; session registry) — low risk
+## Convergence
 
-### Gap Analysis
-- **EC4**: Remote worker URL with trailing slash may cause double slashes
-- **EC5**: Race condition between cancellation and completion
-- **II3**: No health check for local session spawner
-- **MI1-MI3**: Logging, metrics, request ID propagation gaps
-- **IR2, IR4-IR6, IR8**: Documentation gaps (API errors, permissions, confirmation, versions, resource limits)
+**Not achieved.** Condition A fails (4 significant findings). Condition B passes (spec-adherence.md Principle Violations = "None.").
 
----
+## Next Steps
 
-## Suggestions
-
-1. Extract shared datetime utility function (addresses M1)
-2. Document module-level globals pattern (addresses M5)
-3. Update architecture to document team_name, exec_instructions, model parameters (addresses U1-U3)
-4. Add integration tests between session-spawner and remote-worker (addresses II1 gap)
-5. Fix README contradiction on role system (addresses II2 gap)
-
----
-
-## Findings Requiring User Input
-
-None — all findings can be resolved from existing context.
-
----
-
-## Proposed Refinement Plan
-
-No critical or significant findings require a refinement cycle. The project is ready for user evaluation.
-
-The 5 minor code-quality findings and 11 gap-analysis findings (all minor or deferred) can be addressed opportunistically in future maintenance cycles or documented as known limitations.
-
-Key recommendations for future work:
-1. Address job store memory leak (EC1) before production deployment of long-running workers
-2. Add integration tests (II1) to verify component interaction
-3. Fix role system documentation contradiction (II2)
-4. Document security posture for exec_instructions (OQ-005)
-
----
-
-## Cross-References
-
-| Finding | Source | Related To |
-|---------|--------|------------|
-| M1 (datetime pattern) | code-reviewer | OQ-007 (naming) |
-| M2 (exception handling) | code-reviewer | OQ-009 (exception specificity) |
-| M3 (version inconsistency) | code-reviewer | OQ-010 (version alignment) |
-| U1-U3 (undocumented) | spec-reviewer | Architecture Section 3 |
-| EC1 (memory leak) | gap-analyst | OQ-002 (job store eviction) |
-| II2 (role docs) | gap-analyst | WI-015, D-008 |
-
----
-
-## Final Verdict
-
-**PASS**
-
-The Outpost project meets its stated requirements. All critical and significant findings from Cycle 002 have been resolved. The implementation adheres to the architecture, satisfies all guiding principles, and maintains consistent patterns across components.
+Refinement cycle to address:
+1. Code S1: Replace `await job_queue.put()` with `put_nowait` + `QueueFull` exception
+2. Code S2: Fix `_handle_cancel_remote_job` to not return on connection errors in the second pass
+3. Gap NG1: Replace `(None, 1, msg)` tuple with a dedicated `_FileNotFoundSentinel` or `_ErrorResult` namedtuple
+4. Gap CF1: Add an integration test that drives a job to completion using a real subprocess (e.g., `echo` command)

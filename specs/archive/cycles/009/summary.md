@@ -1,0 +1,41 @@
+# Review Summary — Cycle 9
+
+## Overview
+
+Cycle 9 addressed all cycle 8 security, correctness, async, and documentation findings. All 5 work items passed incremental review after rework. The capstone review found 1 critical and 2 significant issues (all within scope and resolved during rework), leaving 0 unresolved critical or significant findings. Three minor documentation/test gaps remain for cycle 10.
+
+## Critical Findings
+
+None (C1 resolved in rework: proc.terminate() in cancel_job now gated on `not container_name`).
+
+## Significant Findings
+
+None (all resolved in rework).
+
+## Minor Findings
+
+- [spec-reviewer] README "Security flags" bullet list omits `--memory`/`--memory-swap` and `--cpus` — relates to: WI-052, architecture §9
+- [gap-analyst] No test for FileNotFoundError when docker binary is absent in container mode — relates to: cross-cutting (OQ-036)
+- [gap-analyst] `POST /jobs` API reference table omits HTTP 500 status — relates to: WI-051/WI-052 (OQ-037)
+- [gap-analyst] Container mode integration test bypasses the HTTP layer — relates to: WI-055 (OQ-038)
+- [spec-reviewer] Architecture §7 error table omits HTTP 500 ANTHROPIC_API_KEY pre-flight condition — relates to: WI-051 (OQ-039)
+
+## Suggestions
+
+- [code-reviewer] `test_run_claude_job_file_not_found_marks_job_failed` asserts `"claude" in data["error"]` — fragile; also assert `"PATH"` for actionability
+- [gap-analyst] Architecture §7 Remote Worker Errors table should include the HTTP 500 container mode pre-flight condition
+
+## Findings Requiring User Input
+
+None — all findings can be resolved from existing context.
+
+## Proposed Refinement Plan
+
+No critical or significant findings require a refinement cycle. Three minor gaps are documented for cycle 10:
+
+1. **OQ-036**: Add test for FileNotFoundError in container mode (docker binary missing)
+2. **OQ-037**: Add HTTP 500 row to POST /jobs API reference in remote-worker README
+3. **OQ-038/OQ-039**: Architecture §7 error table + integration test via HTTP layer for container mode
+4. **U1-U7 (carried forward)**: Document undocumented spawn_session additions in architecture
+
+These are all minor documentation and test coverage gaps. The project is functional and correct as shipped. The user may evaluate whether to address these in a focused cycle or defer them further.

@@ -1,0 +1,15 @@
+FROM node:20-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g @anthropic-ai/claude-code
+
+# Rename the pre-existing node user (uid/gid 1000) to agent
+RUN usermod -l agent -d /home/agent -m node \
+  && groupmod -n agent node
+
+USER agent
+WORKDIR /workspace

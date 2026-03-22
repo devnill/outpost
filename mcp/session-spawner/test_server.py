@@ -6,6 +6,7 @@ without spawning actual claude processes.
 """
 
 import asyncio
+import collections
 import json
 import logging
 import os
@@ -57,7 +58,7 @@ def _reset_globals():
     """
     spawner._semaphore = asyncio.Semaphore(spawner.DEFAULT_CONCURRENCY)
     spawner._server_max_depth = spawner.DEFAULT_MAX_DEPTH
-    spawner._session_registry = []
+    spawner._session_registry = collections.deque(maxlen=1000)
     spawner._roles = {}
     spawner._remote_workers = []
     spawner._http_session = None
@@ -501,9 +502,9 @@ async def test_session_registry_accumulates(tmp_working_dir):
 
 @pytest.mark.asyncio
 async def test_session_registry_reset_between_tests(tmp_working_dir):
-    """The _reset_globals fixture resets _session_registry to []."""
+    """The _reset_globals fixture resets _session_registry to an empty deque(maxlen=1000)."""
     # At the start of each test, _reset_globals has already run, so registry must be empty
-    assert spawner._session_registry == []
+    assert len(spawner._session_registry) == 0
 
     with patch("subprocess.run", return_value=_make_completed_process(stdout='{"result": "ok"}')):
         await spawner.call_tool("spawn_session", {"prompt": "hello", "working_dir": tmp_working_dir})
@@ -736,7 +737,7 @@ async def test_status_table_printed_to_stderr(capsys, tmp_working_dir):
 
 def test_status_table_empty_registry_no_output(capsys):
     """If _session_registry is empty, _print_status_table() prints nothing to stderr."""
-    spawner._session_registry = []
+    spawner._session_registry = collections.deque(maxlen=1000)
     spawner._print_status_table()
     captured = capsys.readouterr()
     assert captured.err == ""
@@ -1946,6 +1947,41 @@ async def test_cancel_remote_job_exception_on_first_worker_success_on_second():
 
 
 @pytest.mark.asyncio
+async def test_cancel_remote_job_exception_on_first_worker_404_on_second():
+    """cancel_remote_job fan-out: connection error on worker-1, 404 on worker-2.
+
+    The result should indicate 'not found' (job confirmed absent on worker-2),
+    NOT 'connection error' — a connection error is not definitive and must not
+    mask the 404 confirmation from the reachable worker.
+    """
+    _configure_workers([
+        {"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"},
+        {"name": "worker-2", "url": "http://worker2.example.com", "api_key": "key2"},
+    ])
+
+    def side_effect_delete(url, **kwargs):
+        if "worker1" in url:
+            raise Exception("simulated connection error")
+        return _make_mock_response(404, {})
+
+    mock_session = MagicMock()
+    mock_session.delete = MagicMock(side_effect=side_effect_delete)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "cancel_remote_job",
+            {"job_id": "job-exc-404-fanout"},
+        )
+
+    data = _parse_response(result)
+    assert "error" in data
+    # Must be a "not found" style message — connection error must NOT cause early return
+    assert "not found" in data["error"].lower()
+    # Must mention both workers in the error (full picture)
+    assert "worker-1" in data["error"] or "worker-2" in data["error"]
+
+
+@pytest.mark.asyncio
 async def test_cancel_remote_job_auth_error_on_first_worker_success_on_second():
     """cancel_remote_job fan-out: 401 on worker-1 is skipped; worker-2 returns 204 and is used."""
     _configure_workers([
@@ -1970,6 +2006,67 @@ async def test_cancel_remote_job_auth_error_on_first_worker_success_on_second():
     data = _parse_response(result)
     assert data["status"] == "cancelled"
     assert data["job_id"] == "job-auth-fanout"
+    assert data["worker_name"] == "worker-2"
+
+
+@pytest.mark.asyncio
+async def test_cancel_remote_job_fan_out_is_concurrent():
+    """cancel_remote_job fan-out: cancel requests are issued concurrently via asyncio.gather.
+
+    Proves concurrency using an asyncio.Event cross-wait: worker-1's mock sets an event
+    and awaits worker-2's event before returning; worker-2 does the same. Under asyncio.gather
+    both coroutines run simultaneously, set their events, and unblock each other. Under a
+    sequential for-loop worker-1 would block forever waiting for worker-2's event, causing
+    asyncio.wait_for to raise TimeoutError and the test to fail.
+    """
+    _configure_workers([
+        {"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"},
+        {"name": "worker-2", "url": "http://worker2.example.com", "api_key": "key2"},
+    ])
+
+    w1_started = asyncio.Event()
+    w2_started = asyncio.Event()
+
+    async def worker1_enter():
+        w1_started.set()
+        await asyncio.wait_for(w2_started.wait(), timeout=2.0)
+        mock_resp = MagicMock()
+        mock_resp.status = 404
+        mock_resp.json = AsyncMock(return_value={})
+        return mock_resp
+
+    async def worker2_enter():
+        w2_started.set()
+        await asyncio.wait_for(w1_started.wait(), timeout=2.0)
+        mock_resp = MagicMock()
+        mock_resp.status = 204
+        mock_resp.json = AsyncMock(return_value={})
+        return mock_resp
+
+    cm1 = MagicMock()
+    cm1.__aenter__ = AsyncMock(side_effect=worker1_enter)
+    cm1.__aexit__ = AsyncMock(return_value=False)
+
+    cm2 = MagicMock()
+    cm2.__aenter__ = AsyncMock(side_effect=worker2_enter)
+    cm2.__aexit__ = AsyncMock(return_value=False)
+
+    def side_effect_delete(url, **kwargs):
+        return cm1 if "worker1" in url else cm2
+
+    mock_session = MagicMock()
+    mock_session.delete = MagicMock(side_effect=side_effect_delete)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "cancel_remote_job",
+            {"job_id": "job-concurrent-test"},
+        )
+
+    # The successful 204 result from worker-2 should be returned
+    data = _parse_response(result)
+    assert data["status"] == "cancelled"
+    assert data["job_id"] == "job-concurrent-test"
     assert data["worker_name"] == "worker-2"
 
 
@@ -2038,3 +2135,114 @@ async def test_spawn_session_file_not_found_returns_structured_error(tmp_working
     # No raw Python traceback or exception class name
     assert "FileNotFoundError" not in data["error"]
     assert "Traceback" not in data["error"]
+
+
+# ---------------------------------------------------------------------------
+# NC1: spawn_remote_session — all workers unreachable
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_nc1_spawn_remote_session_all_workers_unreachable():
+    """NC1: When all workers return non-'ok' health status, spawn_remote_session returns an error.
+
+    With no worker_name specified, the server performs health checks and selects
+    the least-loaded reachable worker. If all health checks return a non-'ok'
+    status (e.g. 'unreachable'), no worker can be selected, and the response
+    must contain an error field mentioning 'unreachable' or 'auth'.
+    """
+    spawner._remote_workers = [{"name": "w1", "url": "http://bad.example.com", "api_key": "k"}]
+
+    async def mock_fetch_health(worker: dict) -> dict:
+        return {
+            "name": worker["name"],
+            "url": worker["url"],
+            "status": "unreachable",
+            "active_jobs": None,
+            "queued_jobs": None,
+            "max_concurrency": None,
+        }
+
+    with patch.object(spawner, "_fetch_worker_health", side_effect=mock_fetch_health):
+        result = await spawner._handle_spawn_remote_session(
+            {"prompt": "do work", "working_dir": "/tmp"}
+        )
+
+    data = _parse_response(result)
+    assert "error" in data
+    error_text = data["error"].lower()
+    assert "unreachable" in error_text or "auth" in error_text
+
+
+# ---------------------------------------------------------------------------
+# NC2: cancel_remote_job — mixed error + not_found results
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_nc2_cancel_remote_job_mixed_error_and_not_found():
+    """NC2: cancel_remote_job with worker A returning connection error and worker B returning 404.
+
+    The response must contain an error that describes both the not-found confirmation
+    and the connection error, giving the caller the full picture.
+    """
+    spawner._remote_workers = [
+        {"name": "worker-a", "url": "http://worker-a.example.com", "api_key": "key-a"},
+        {"name": "worker-b", "url": "http://worker-b.example.com", "api_key": "key-b"},
+    ]
+
+    def side_effect_delete(url, **kwargs):
+        if "worker-a" in url:
+            # Raise an exception to produce _status='error' / connection error
+            raise Exception("Connection refused")
+        # worker-b: 404 not found
+        return _make_mock_response(404, {})
+
+    mock_session = MagicMock()
+    mock_session.delete = MagicMock(side_effect=side_effect_delete)
+
+    with patch.object(spawner, "_get_http_session", return_value=mock_session):
+        result = await spawner._handle_cancel_remote_job({"job_id": "job-mixed-nc2"})
+
+    data = _parse_response(result)
+    assert "error" in data
+    error_text = data["error"]
+    # Must mention the not-found worker(s)
+    assert "not found" in error_text.lower()
+    # Must include connection error details
+    assert "Connection refused" in error_text
+
+
+# ---------------------------------------------------------------------------
+# CF7: list_tools inputSchema required fields
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_cf7_list_tools_input_schema_required_fields():
+    """CF7: Each tool's inputSchema contains a 'required' key with the correct required fields.
+
+    Verifies that:
+    - spawn_session requires ['prompt', 'working_dir']
+    - spawn_remote_session requires ['prompt', 'working_dir']
+    - poll_remote_job requires ['job_id']
+    - cancel_remote_job requires ['job_id']
+    """
+    tools = await spawner.list_tools()
+    schema_by_name = {t.name: t.inputSchema for t in tools}
+
+    assert "spawn_session" in schema_by_name
+    assert "required" in schema_by_name["spawn_session"]
+    assert set(schema_by_name["spawn_session"]["required"]) == {"prompt", "working_dir"}
+
+    assert "spawn_remote_session" in schema_by_name
+    assert "required" in schema_by_name["spawn_remote_session"]
+    assert set(schema_by_name["spawn_remote_session"]["required"]) == {"prompt", "working_dir"}
+
+    assert "poll_remote_job" in schema_by_name
+    assert "required" in schema_by_name["poll_remote_job"]
+    assert set(schema_by_name["poll_remote_job"]["required"]) == {"job_id"}
+
+    assert "cancel_remote_job" in schema_by_name
+    assert "required" in schema_by_name["cancel_remote_job"]
+    assert set(schema_by_name["cancel_remote_job"]["required"]) == {"job_id"}
