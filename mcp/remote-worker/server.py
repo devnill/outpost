@@ -6,6 +6,7 @@ and exposes a REST API for job management.
 Configuration via environment variables:
 - IDEATE_WORKER_API_KEY: Required API key for X-API-Key header authentication.
 - IDEATE_WORKER_MAX_CONCURRENCY: Max concurrent jobs (default: 3).
+- IDEATE_WORKER_MAX_JOBS: Max jobs retained in the job store (default: 1000).
 - IDEATE_WORKER_PORT: Listen port (default: 7432).
 """
 
@@ -68,6 +69,7 @@ class JobRecord:
         self.git_diff: str | None = None
         self.error: str | None = None
         self.duration_ms: int | None = None
+        self.process: subprocess.Popen | None = None
 
 
 # --- State ---
@@ -82,8 +84,16 @@ job_queue: asyncio.Queue[str] = asyncio.Queue()
 
 @asynccontextmanager
 async def lifespan(application: FastAPI):
-    global _max_concurrency
+    global _max_concurrency, _max_jobs
     _max_concurrency = _get_max_concurrency()
+    try:
+        _max_jobs = int(os.environ.get("IDEATE_WORKER_MAX_JOBS", "1000"))
+    except ValueError:
+        _max_jobs = 1000
+    if not _get_api_key():
+        logger.warning(
+            "IDEATE_WORKER_API_KEY is not set — all requests will be rejected with HTTP 401"
+        )
     tasks = [asyncio.create_task(_worker(i)) for i in range(_max_concurrency)]
     logger.info("Started %d worker coroutines", _max_concurrency)
     yield
@@ -114,6 +124,7 @@ def _get_base_dir() -> Path | None:
 
 # Resolved at startup
 _max_concurrency: int = DEFAULT_MAX_CONCURRENCY
+_max_jobs: int = 1000
 
 
 # --- Auth middleware ---
@@ -152,6 +163,7 @@ async def health():
         "active_jobs": active,
         "queued_jobs": queued,
         "max_concurrency": _max_concurrency,
+        "max_jobs": _max_jobs,
     }
 
 
@@ -222,7 +234,7 @@ async def get_job(job_id: str):
         if record.status == "running":
             return {"job_id": record.job_id, "status": "running", "started_at": record.started_at}
 
-        if record.status in ("completed", "failed"):
+        if record.status in ("completed", "failed", "cancelled"):
             return {
                 "job_id": record.job_id,
                 "status": record.status,
@@ -236,7 +248,7 @@ async def get_job(job_id: str):
                 "completed_at": record.completed_at,
             }
 
-        # queued or cancelled
+        # queued
         return {
             "job_id": record.job_id,
             "status": record.status,
@@ -246,20 +258,72 @@ async def get_job(job_id: str):
 
 @app.delete("/jobs/{job_id}", status_code=204)
 async def cancel_job(job_id: str):
+    proc = None
     async with job_store_lock:
         record = job_store.get(job_id)
         if not record:
             raise HTTPException(status_code=404, detail="Job not found")
 
-        if record.status != "queued":
+        if record.status == "queued":
+            record.status = "cancelled"
+            _evict_terminal_jobs_locked()
+            return None
+
+        if record.status == "running":
+            proc = record.process
+            record.status = "cancelled"
+            record.completed_at = datetime.datetime.now(
+                datetime.timezone.utc
+            ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            _evict_terminal_jobs_locked()
+            # Signal outside the lock to avoid blocking
+        else:
             raise HTTPException(
                 status_code=409,
                 detail=f"Cannot cancel job with status '{record.status}'",
             )
 
-        record.status = "cancelled"
+    # Signal the process after releasing the lock
+    if proc is not None:
+        try:
+            proc.terminate()
+        except (ProcessLookupError, OSError):  # process already exited; ProcessLookupError is a subclass of OSError
+            pass
+        # Give it 2s to terminate gracefully, then kill
+        try:
+            await asyncio.wait_for(
+                asyncio.to_thread(proc.wait),
+                timeout=2.0
+            )
+        except asyncio.TimeoutError:
+            try:
+                proc.kill()
+            except (ProcessLookupError, OSError):  # process already exited
+                pass
 
     return None
+
+
+# --- LRU eviction ---
+
+
+def _evict_terminal_jobs_locked() -> None:
+    """Must be called while holding job_store_lock. Remove oldest terminal jobs when job_store exceeds _max_jobs."""
+    if len(job_store) <= _max_jobs:
+        return
+    terminal = [r for r in job_store.values() if r.status in ("completed", "failed", "cancelled")]
+    # Sort by completion timestamp (fallback to creation time for cancelled-while-queued)
+    terminal.sort(key=lambda r: r.completed_at or r.created_at or "")
+    needed = len(job_store) - _max_jobs
+    evict_count = min(needed, len(terminal))
+    if len(terminal) < needed:
+        logger.warning(
+            "Cannot prune job store to capacity: need to evict %d but only %d terminal jobs available "
+            "(active/queued jobs alone exceed _max_jobs=%d)",
+            needed, len(terminal), _max_jobs,
+        )
+    for record in terminal[:evict_count]:
+        del job_store[record.job_id]
 
 
 # --- Worker coroutines ---
@@ -268,15 +332,16 @@ async def cancel_job(job_id: str):
 def _capture_git_diff(working_dir: str) -> str | None:
     """Capture git diff HEAD in the working directory. Returns None if not a git repo."""
     try:
-        result = subprocess.run(
+        proc = subprocess.Popen(
             ["git", "diff", "HEAD"],
             cwd=working_dir,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=30,
         )
-        if result.returncode == 0:
-            return result.stdout
+        stdout, stderr = proc.communicate(timeout=30)
+        if proc.returncode == 0:
+            return stdout
         return None
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
         return None
@@ -285,7 +350,8 @@ def _capture_git_diff(working_dir: str) -> str | None:
 def _run_claude_job(record: JobRecord) -> tuple[str, int, str | None]:
     """
     Run claude CLI synchronously. Returns (output, exit_code, error).
-    Uses the same subprocess pattern as session-spawner.
+    Invokes `claude --print` with JSON output, setting both cwd= on the subprocess
+    and --cwd in the CLI arguments.
     """
     cmd = [
         "claude",
@@ -293,30 +359,50 @@ def _run_claude_job(record: JobRecord) -> tuple[str, int, str | None]:
         "--output-format", "json",
         "--permission-mode", record.permission_mode,
         "--max-turns", str(record.max_turns),
-        record.prompt,
+        "--cwd", record.working_dir,
     ]
 
     if record.allowed_tools:
         cmd.extend(["--allowedTools", ",".join(record.allowed_tools)])
 
+    cmd.append(record.prompt)
+
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=record.timeout,
-            cwd=record.working_dir,
-        )
-        error = result.stderr if result.returncode != 0 else None
-        return result.stdout, result.returncode, error
-    except subprocess.TimeoutExpired as e:
-        # Capture partial output on timeout
-        partial_stdout = ""
-        if isinstance(e.stdout, bytes):
-            partial_stdout = e.stdout.decode("utf-8", errors="ignore")
-        elif e.stdout:
-            partial_stdout = e.stdout
-        return partial_stdout, -1, f"Job timed out after {record.timeout}s"
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=record.working_dir,
+            )
+        except FileNotFoundError:
+            record.status = "failed"
+            record.exit_code = 1
+            record.error = "claude CLI not found on PATH. Ensure Claude Code is installed and the 'claude' binary is accessible in the server process environment."
+            record.completed_at = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            return
+        # Guard: if the job was cancelled while Popen was initializing, kill and abort
+        if record.status == "cancelled":
+            try:
+                proc.kill()
+            except (ProcessLookupError, OSError):
+                pass
+            return None
+        record.process = proc  # set before communicate() so cancel can signal it
+
+        try:
+            stdout, stderr = proc.communicate(timeout=record.timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout_bytes, stderr_bytes = proc.communicate()
+            partial_stdout = stdout_bytes if isinstance(stdout_bytes, str) else stdout_bytes.decode("utf-8", errors="ignore")
+            return partial_stdout, -1, f"Job timed out after {record.timeout}s"
+
+        error = stderr if proc.returncode != 0 else None
+        return stdout, proc.returncode, error
+    finally:
+        record.process = None  # clear after completion
 
 
 async def _process_job(record: JobRecord) -> None:
@@ -324,8 +410,23 @@ async def _process_job(record: JobRecord) -> None:
     Exposed for testing so tests can drive execution without duplicating this logic."""
     start_time = time.monotonic()
 
-    output, exit_code, error = await asyncio.to_thread(_run_claude_job, record)
+    result = await asyncio.to_thread(_run_claude_job, record)
     duration_ms = int((time.monotonic() - start_time) * 1000)
+
+    # _run_claude_job returns None when it has already updated record directly (e.g. FileNotFoundError,
+    # or cancel-while-starting race). Ensure completed_at is set for all terminal paths.
+    if result is None:
+        async with job_store_lock:
+            record.duration_ms = duration_ms
+            if record.completed_at is None:
+                record.completed_at = datetime.datetime.now(
+                    datetime.timezone.utc
+                ).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+            _evict_terminal_jobs_locked()
+        logger.info("Job %s %s in %dms", record.job_id, record.status, duration_ms)
+        return
+
+    output, exit_code, error = result
     git_diff = await asyncio.to_thread(_capture_git_diff, record.working_dir)
 
     completed_at = datetime.datetime.now(
@@ -338,8 +439,10 @@ async def _process_job(record: JobRecord) -> None:
         record.git_diff = git_diff
         record.error = error
         record.duration_ms = duration_ms
-        record.completed_at = completed_at
-        record.status = "failed" if exit_code != 0 else "completed"
+        if record.status != "cancelled":  # don't overwrite cancel
+            record.completed_at = completed_at
+            record.status = "failed" if exit_code != 0 else "completed"
+        _evict_terminal_jobs_locked()
 
     logger.info(
         "Job %s %s in %dms (exit_code=%d)",

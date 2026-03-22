@@ -1,0 +1,143 @@
+# Decision Log — Cycle 7
+
+**Produced**: 2026-03-21
+**Scope**: Capstone review — no work items executed. Full-project review of implementation state after cycles 1–6 (WI-010 through WI-027).
+**Work Items Completed**: 0
+**Prior state entering this cycle**: 0 critical, 0 significant findings; 3 minor open questions (OQ-011, OQ-020, OQ-021) carried from cycle 6.
+**Final Verdict**: Pass — no critical or significant findings. Four minor code findings (code-quality M1–M4), one minor interface deviation (spec-adherence D1), and multiple minor documentation gaps. Two significant gaps remain without user resolution: the filesystem-state design decision (OQ-025) and `FileNotFoundError` error handling (OQ-024). Eight open questions carry forward from this cycle.
+
+---
+
+## Decisions
+
+### Planning Decisions (Interview Sessions 1–3, 2026-03-11 to 2026-03-20)
+
+- **PL-001**: Extract orchestration infrastructure from ideate into standalone outpost project.
+- **PL-002**: Two dispatch modes — local subprocess and remote HTTP. session-spawner + remote-worker as separate components.
+- **PL-003**: All session tracking uses filesystem state, not in-memory state (key design decision #1 — not fully implemented; see OQ-025).
+- **PL-004**: Depth limiting via server-enforced `OUTPOST_MAX_DEPTH`; clients cannot override.
+- **PL-005**: Every session has a mandatory timeout; hung sessions killed via SIGKILL.
+- **PL-006**: Role-based permissions — four roles (worker/reviewer/manager/proxy-human), static JSON loaded at startup.
+- **PL-007**: Output truncation to prevent context overflow — 50KB byte limit, overflow written to temp file.
+- **PL-008**: Graceful degradation — worker failures produce structured errors; fan-out uses error-collection not early-return.
+- **PL-009**: HTTP/REST transport for remote workers; FastAPI + aiohttp.
+- **PL-010**: In-memory job queue with no persistence across restarts (explicit scope boundary — constraint C16).
+- **PL-011**: Single-user assumption; multi-tenant isolation out of scope.
+- **PL-012** (refinement 1): Retire stale WI-010; verify session-spawner implementation via WI-011.
+- **PL-013** (refinement 2): Accept synchronous `spawn_session` as final design; retire `poll_session`.
+- **PL-014** (refinement 2): Role resolution — Option A: session-spawner resolves at dispatch time, sends resolved constraints in HTTP payload.
+- **PL-015** (refinement 2): Running job cancellation via SIGTERM/SIGKILL; `process` field on `JobRecord`.
+- **PL-016** (refinement 3): Role `system_prompt` propagated to remote sessions via payload prepend.
+- **PL-017** (refinement 3): Add `cancel_remote_job` as fifth MCP tool; fan-out uses continue + error-collection.
+- **PL-018** (refinement 3): LRU eviction for remote-worker job store via `IDEATE_WORKER_MAX_JOBS`.
+- **PL-019** (refinement 3): Add integration tests using real uvicorn on random port.
+- **PL-020** (refinement 3): Startup validation warnings when API credentials absent.
+
+### Execution Decisions (Cycles 1–6)
+
+- **EX-001**: API key comparison uses `hmac.compare_digest` (timing-attack prevention).
+- **EX-002**: `poll_remote_job` fan-out checks found results before auth errors (GP-3).
+- **EX-003**: `poll_remote_job` propagates `created_at`, `started_at`, `completed_at` timestamp fields.
+- **EX-004**: Timeout path uses byte-boundary truncation and writes overflow file, matching success path.
+- **EX-005**: Worker health checks run concurrently via `asyncio.gather`.
+- **EX-006**: Shared `aiohttp.ClientSession` reused via `_get_http_session()`.
+- **EX-007**: `token_usage` unconditionally present in `spawn_session` response (null when unavailable).
+- **EX-008**: `cancel_remote_job` fan-out uses error-collection, not early-return.
+- **EX-009**: LRU eviction count capped at `min(needed, len(terminal))` to prevent under-eviction.
+- **EX-010**: Integration tests reworked to call MCP handler layer, not HTTP API directly (WI-025).
+- **EX-011**: Documentation sweep closing `cancel_remote_job`, `IDEATE_WORKER_MAX_JOBS`, and `max_jobs` health schema gaps (WI-026). Architecture Section 8 excluded from scope → OQ-020 carries forward.
+- **EX-012**: `model` parameter uses caller-wins pattern over role default.
+- **EX-013**: `exec_instructions` propagated to grandchild sessions via `IDEATE_EXEC_INSTRUCTIONS` env var.
+
+### Review Decisions (Cycle 7)
+
+- **RV-001**: Cycle 7 is a capstone review — no work items executed. Any remediation requires a new cycle.
+- **RV-002**: `proc.terminate()` race (OQ-011) deferred again. Three consecutive cycles with confirmed minor, known fix, no scheduling. Carries forward.
+- **RV-003**: `max_jobs` absent from `list_remote_workers` output identified as new deviation — OQ-022.
+- **RV-004**: `--cwd` absent from `_run_claude_job` identified as latent divergence — OQ-023.
+- **RV-005**: `FileNotFoundError` gap confirmed significant for fourth cycle, recommended "address now" — OQ-024.
+- **RV-006**: In-memory session registry escalated to significant by gap-analyst; requires user decision — OQ-025.
+
+---
+
+## Open Questions
+
+### OQ-011: proc.terminate() race condition in cancel_job (open since cycle 6)
+- **Finding**: `proc.terminate()` and `proc.kill()` in `cancel_job` called without `ProcessLookupError` guard. If subprocess exits between `job_store_lock` release and signal delivery, endpoint returns HTTP 500.
+- **Source**: Cycle 7 code-quality M1, gap-analysis EC1, spec-adherence MD3. Also cycle 6 code-quality M1, gap-analysis MG2.
+- **Fix**: Two-line try/except at `mcp/remote-worker/server.py:288` and `:296`.
+- **Who answers**: Technical. No design decision required.
+
+### OQ-020: IDEATE_WORKER_MAX_JOBS absent from architecture.md Section 8 (open since cycle 6)
+- **Finding**: Architecture Section 8 env var reference table omits `IDEATE_WORKER_MAX_JOBS`.
+- **Source**: Cycle 7 code-quality M3, gap-analysis MI1, spec-adherence MD4. Also cycle 6 gap-analysis MG1.
+- **Fix**: One-row addition to `specs/plan/architecture.md` Section 8 table.
+- **Who answers**: Technical. No design decision required.
+
+### OQ-021: Both conftest.py files register under sys.modules["server"] (open since cycle 6)
+- **Finding**: Second conftest registration silently overwrites first when both test suites collected together. Bare `import server` in either test file would resolve the wrong module.
+- **Source**: Cycle 7 code-quality M2, gap-analysis MI2. Also cycle 6 code-quality M1, gap-analysis MG2.
+- **Fix**: Rename keys to `sys.modules["session_spawner_server"]` / `sys.modules["remote_worker_server"]`; update imports in both test files.
+- **Who answers**: Technical. No design decision required.
+
+### OQ-022: max_jobs absent from list_remote_workers output (new — cycle 7)
+- **Finding**: `_fetch_worker_health` in session-spawner does not forward `max_jobs` from the remote-worker `/health` response. Field is in architecture spec (section 3) and available in the worker response.
+- **Source**: Cycle 7 spec-adherence D1/MD1.
+- **Fix**: Add `"max_jobs": data.get("max_jobs")` at `mcp/session-spawner/server.py:684`.
+- **Who answers**: Technical. No design decision required.
+
+### OQ-023: --cwd flag absent from remote-worker _run_claude_job (new — cycle 7)
+- **Finding**: `_run_claude_job` sets `cwd=record.working_dir` on subprocess but does not pass `--cwd` to the `claude` CLI, unlike session-spawner. A docstring falsely claims equivalent subprocess patterns. Latent correctness risk if Claude CLI `--cwd` handling ever diverges from process cwd inheritance.
+- **Source**: Cycle 7 code-quality M4.
+- **Fix option A** (preferred): Add `"--cwd", record.working_dir` to `cmd` at `mcp/remote-worker/server.py:354`. One line.
+- **Fix option B**: Remove false equivalence claim from docstring; add comment documenting intentional difference.
+- **Who answers**: Technical. No design decision required.
+
+### OQ-024: FileNotFoundError on missing claude binary produces non-actionable errors (open since cycle 3)
+- **Finding**: Both servers propagate raw `FileNotFoundError` when `claude` binary is not on PATH. session-spawner: MCP protocol error with Python traceback. remote-worker: job marked `failed` with exception text. Neither is actionable. Most common new-user failure mode.
+- **Source**: Cycle 7 gap-analysis EC2/IR1; session-lifecycle/questions.md Q-6. Also cycles 3, 4, 5 gap-analyses. "Address now" recommended in four consecutive cycles.
+- **Fix**: Catch `FileNotFoundError` at subprocess call site in both components; return "claude CLI not found on PATH" structured error.
+- **Who answers**: Technical. No design decision required.
+
+### OQ-025: In-memory session registry contradicts interview's filesystem-state design decision (open since cycle 2)
+- **Finding**: Interview key design decision #1 states "All session tracking uses files, not in-memory state." `_session_registry` is in-memory with opt-in disk logging via `OUTPOST_LOG_FILE` (no default path). Session history lost on restart. Six cycles without user decision.
+- **Source**: Cycle 7 gap-analysis MR2 (significant); spec-adherence MD2 (minor deviation). Also session-lifecycle/decisions.md D-8, questions.md Q-4.
+- **Options**: A) Add default `OUTPOST_LOG_FILE` path to make state durable by default. B) Formally accept in-memory design; update interview record and constraint C4.
+- **Who answers**: **User decision required.** Cannot be resolved by technical investigation alone.
+
+### OQ-026: CLAUDE.md references non-existent requirements.txt at repository root (new — cycle 7)
+- **Finding**: `CLAUDE.md` Installation section instructs `pip install -r requirements.txt`. No root `requirements.txt` exists. Correct path is `mcp/session-spawner/requirements.txt`. Root README is correct; only `CLAUDE.md` is stale.
+- **Source**: Cycle 7 gap-analysis MI3.
+- **Fix**: Update `CLAUDE.md` to reference `mcp/session-spawner/requirements.txt`. One line.
+- **Who answers**: Technical. No design decision required.
+
+### OQ-027: cancel_remote_job absent from root README tool list (new — cycle 7)
+- **Finding**: Root `README.md` Usage section lists four tools; implementation has five. `cancel_remote_job` not visible at the project entry point.
+- **Source**: Cycle 7 gap-analysis MR1/IR2.
+- **Fix**: Add `cancel_remote_job` to tool list in `README.md`. One line.
+- **Who answers**: Technical. No design decision required.
+
+### OQ-028: Root README configuration section omits most environment variables (new — cycle 7)
+- **Finding**: Root `README.md` Configuration section documents only `OUTPOST_REMOTE_WORKERS`. Seven session-spawner variables (including security-critical `OUTPOST_SAFE_ROOT`) and all remote-worker variables absent. No cross-reference to component READMEs.
+- **Source**: Cycle 7 gap-analysis MR3.
+- **Fix**: Add cross-reference to component READMEs, or reproduce key security/observability variables.
+- **Who answers**: Technical. No design decision required.
+
+---
+
+## Cross-References
+
+**CR1: proc.terminate() race — OQ-011**
+Code-quality M1, spec-adherence MD3, and gap-analysis EC1 independently identified the same defect this cycle. All three prior cycles also flagged it. Strongest candidate for next-cycle scheduling.
+
+**CR2: In-memory session registry — OQ-025**
+Spec-adherence (minor) and gap-analysis (significant) reach different severity conclusions. Both agree user input is required. The divergence in severity ratings reflects a legitimate uncertainty about whether the interview's design decision was a firm requirement or an expression of intent.
+
+**CR3: FileNotFoundError — OQ-024**
+Gap-analysis EC2/IR1 only; code-quality and spec-adherence did not raise it. Four consecutive cycle recommendations of "address now" without scheduling. Needs a work item, not another deferral.
+
+**CR4: --cwd divergence — OQ-023**
+Code-quality M4 only; no corroboration from other reviewers. New this cycle. Preferred fix is one line.
+
+**CR5: IDEATE_WORKER_MAX_JOBS documentation — OQ-020**
+All three reviewers independently confirmed the same one-row documentation gap for the second consecutive cycle. Strongest documentation-fix candidate.

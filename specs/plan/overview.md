@@ -1,48 +1,53 @@
-# Project Overview — Outpost
+# Change Plan — Outpost Cycle 8
 
-## Summary
+## Trigger
 
-Outpost is an MCP server for Claude Code that provides orchestration infrastructure for delegating work to separate Claude Code instances. It enables parallel execution through local session spawning and distributed execution through remote worker dispatch.
+Cycle 7 capstone review (2026-03-21). No critical or significant findings. Five work items address long-deferred minor code fixes and documentation gaps that accumulated across cycles 3–7. OQ-025 (in-memory session registry design decision) deferred to a future refinement.
 
-## Purpose
+## What Is Changing
 
-Claude Code does not support subagents spawning their own subagents. Outpost fills this gap by providing MCP tools that allow a parent session to:
+**Code fixes (WI-028 through WI-031):**
+- `proc.terminate()` race condition in `cancel_job` — HTTP 500 risk on concurrent process exit
+- `FileNotFoundError` handling in both servers — actionable error message when `claude` binary not on PATH
+- conftest `sys.modules` key collision — rename keys to prevent module shadowing between test suites
+- `--cwd` flag in `_run_claude_job` — close behavioral divergence between session-spawner and remote-worker subprocess invocation
+- `max_jobs` field in `list_remote_workers` output — forward available field per architecture spec
 
-1. **Spawn local sessions** — Create child Claude Code processes for parallel work execution
-2. **Dispatch remote jobs** — Submit work to remote worker daemons via HTTP API
-3. **Manage session lifecycle** — Control running sessions and collect results
-4. **Monitor worker health** — Track remote worker status and job progress
+**Documentation (WI-032):**
+- Root README: add `cancel_remote_job` to tool list, add config cross-reference to component READMEs
+- CLAUDE.md: correct stale `requirements.txt` path
+- architecture.md Section 8: add `IDEATE_WORKER_MAX_JOBS` row
 
-## Core Value
+## What Is NOT Changing
 
-- **Parallelism**: Execute multiple work items concurrently
-- **Distribution**: Dispatch work to remote machines for GPU-intensive tasks
-- **Isolation**: Each session runs in its own context with its own working directory
-- **Observability**: Manager agent provides structured status reports
+- Architecture — no structural changes to either server
+- Guiding principles — all unchanged
+- Role system, job lifecycle, dispatch model — unchanged
+- OQ-025 (in-memory session registry) — explicitly deferred
 
-## Key Components
+## Scope Boundary
 
-| Component | Purpose |
-|-----------|---------|
-| session-spawner | MCP server for local subprocess spawning |
-| remote-worker | FastAPI daemon for remote job execution |
-| roles system | JSON-based capability constraints |
-| manager agent | Status monitoring and reporting |
+Changes are confined to:
+- `mcp/remote-worker/server.py` — proc.terminate guard, FileNotFoundError handling, --cwd flag
+- `mcp/session-spawner/server.py` — FileNotFoundError handling, max_jobs forwarding
+- `mcp/remote-worker/test_server.py` — new tests for WI-028, WI-029, WI-031
+- `mcp/session-spawner/test_server.py` — new tests for WI-029, WI-031
+- `mcp/remote-worker/conftest.py` — key rename
+- `mcp/session-spawner/conftest.py` — key rename
+- `README.md` — documentation
+- `CLAUDE.md` — documentation
+- `specs/plan/architecture.md` — one table row
 
-## Users
+## Expected Impact
 
-- Developers running large projects that benefit from parallel execution
-- Teams distributing work across multiple machines
-- Autonomous execution systems (e.g., brrr skill) requiring worker management
+121 tests continue to pass. New tests added for FileNotFoundError, proc.terminate race, --cwd verification, and max_jobs forwarding. All changes are backward-compatible — no interface changes, no new dependencies.
 
-## Relationship to Ideate
+## Work Items
 
-Outpost was extracted from ideate as a separate concern. Ideate handles SDLC workflow (planning, execution, review). Outpost handles MCP orchestration (session management, remote dispatch). They are complementary projects that can be used together or independently.
-
-## Success Metrics
-
-- Sessions spawn reliably and complete within timeout
-- Remote workers accept jobs and return results
-- Manager agent produces accurate status reports
-- Error conditions are captured and reported
-- Resource limits are enforced without crashes
+| ID | Title | Complexity |
+|----|-------|------------|
+| 028 | Fix proc.terminate() race in cancel_job | easy |
+| 029 | Handle FileNotFoundError for missing claude binary | easy |
+| 030 | Fix conftest sys.modules key collision | easy |
+| 031 | Add --cwd to _run_claude_job; add max_jobs to list_remote_workers output | easy |
+| 032 | Documentation sweep (cycle 7 minor gaps) | easy |

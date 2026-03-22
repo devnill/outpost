@@ -70,7 +70,7 @@ Or add to `.mcp.json`:
 }
 ```
 
-`token_usage` is included when the spawned session returns JSON output containing token information. Omitted otherwise.
+`token_usage` is always present. It contains token counts when the session returns JSON output with token information; it is `null` when token information is unavailable.
 
 If output exceeds 50KB, full output is saved to a temporary file and the response includes:
 
@@ -98,7 +98,7 @@ Submit a job to a configured remote worker daemon. Non-blocking — returns imme
 | `permission_mode` | string | no | "acceptEdits" | Permission mode: `acceptEdits` or `dontAsk` |
 | `allowed_tools` | string[] | no | — | Tool allowlist for the job |
 
-> **Note:** The `role` parameter is an observability label for remote dispatch. The remote worker daemon does not perform role resolution — tool restrictions, system prompt injection, and permission mode overrides defined in the role are not applied to the remote claude subprocess.
+> **Note:** The `role` parameter is resolved by the session-spawner. For both local and remote sessions, the role determines `allowed_tools`, `permission_mode`, `max_turns`, and `system_prompt`. For remote dispatch, the resolved values are propagated as explicit parameters to the remote worker daemon.
 
 ### Returns
 
@@ -151,6 +151,30 @@ When still running:
   "started_at": "2026-03-11T14:23:02.000Z"
 }
 ```
+
+---
+
+## Tool: `cancel_remote_job`
+
+Cancel a queued or running job on a remote worker. Sends `DELETE /jobs/{job_id}` to the worker that owns the job.
+
+### Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `job_id` | string | yes | — | The job ID returned by `spawn_remote_session` |
+| `worker_name` | string | no | — | Name of the worker that owns the job. If omitted, all configured workers are queried until the job is found. |
+
+### Returns
+
+```json
+{
+  "job_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "cancelled"
+}
+```
+
+Returns an error if the job is not found or is already in a terminal state (completed, failed, or cancelled).
 
 ---
 
@@ -225,7 +249,7 @@ This MCP server is not bundled as auto-start. The user must explicitly configure
 
 ### Token Budget Logging
 
-When the spawned session returns JSON output containing token usage information, the server extracts it and includes a `token_usage` field in the response. The server looks for a `usage` or `token_usage` object in the parsed JSON, as well as top-level `input_tokens`, `output_tokens`, and `total_tokens` fields. If no token information is present, the field is omitted from the response.
+When the spawned session returns JSON output containing token usage information, the server extracts it and includes a `token_usage` field in the response. The server looks for a `usage` or `token_usage` object in the parsed JSON, as well as top-level `input_tokens`, `output_tokens`, and `total_tokens` fields. If no token information is present, the field is included with a `null` value.
 
 ## Observability
 
@@ -250,7 +274,7 @@ When `OUTPOST_LOG_FILE` is set, the server appends one JSON entry per spawn call
 }
 ```
 
-`token_usage` is `null` when the session does not return token information. When `team_name` is not provided, it is `null` and `used_team` is `false`.
+`token_usage` is always present. It contains token counts when the session returns JSON output with token information; it is `null` when token information is unavailable. When `team_name` is not provided, it is `null` and `used_team` is `false`.
 
 Peak concurrency is not recorded directly. To approximate it, compare `timestamp` and `duration_ms` values across entries: sessions whose time windows overlap were executing in parallel.
 
@@ -284,6 +308,7 @@ The table is written to stderr because stdio transport uses stdout for the MCP p
 | `OUTPOST_LOG_FILE` | *(unset)* | When set, path to a JSONL file where spawn call entries are appended |
 | `OUTPOST_EXEC_INSTRUCTIONS` | *(unset)* | Default execution instructions prepended to all spawned session prompts. Propagated recursively to all descendant sessions. Overridden per-call by the `exec_instructions` parameter. |
 | `OUTPOST_TEAM_NAME` | *(unset)* | Advisory team name propagated from parent sessions. Set automatically when `team_name` is provided to `spawn_session`. Used for observability only — does not configure subprocess behavior. |
+| `OUTPOST_ROLES_FILE` | *(unset)* | Path to a JSON file containing custom role definitions. Roles are merged with built-in defaults; user-defined roles win on name collision. If not set, falls back to `~/.outpost/roles.json` if it exists. |
 | `OUTPOST_REMOTE_WORKERS` | *(unset)* | JSON array of remote worker configurations. Each entry must have `name` (string), `url` (string), and optionally `api_key` (string). Example: `[{"name": "gpu-box-1", "url": "http://gpu-box-1:7432", "api_key": "secret"}]`. Required to use `spawn_remote_session`, `poll_remote_job`, and `list_remote_workers`. |
 
 ### Recursive Propagation

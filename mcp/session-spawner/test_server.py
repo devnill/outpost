@@ -7,6 +7,7 @@ without spawning actual claude processes.
 
 import asyncio
 import json
+import logging
 import os
 import subprocess
 import tempfile
@@ -15,7 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 # Import the module under test
-import server as spawner
+import session_spawner_server as spawner
 
 
 # ---------------------------------------------------------------------------
@@ -350,6 +351,23 @@ async def test_token_budget_top_level_fields(tmp_working_dir):
     data = _parse_response(result)
     assert "token_usage" in data
     assert data["token_usage"]["total_tokens"] == 700
+
+
+@pytest.mark.asyncio
+async def test_spawn_session_token_usage_null_when_extraction_fails(tmp_working_dir):
+    """Normal-path response includes token_usage: null when output_format is 'text' (token extraction is skipped)."""
+    with patch(
+        "subprocess.run",
+        return_value=_make_completed_process(stdout="plain text output, not JSON"),
+    ):
+        result = await spawner.call_tool(
+            "spawn_session",
+            {"prompt": "hello", "working_dir": tmp_working_dir, "output_format": "text"},
+        )
+
+    data = _parse_response(result)
+    assert "token_usage" in data
+    assert data["token_usage"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -837,12 +855,20 @@ async def test_spawn_remote_session_submits_job_and_returns_job_id():
     """spawn_remote_session submits to configured worker and returns job_id and worker_name."""
     _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
 
+    captured_payload = {}
+
     mock_session = MagicMock()
     # When no worker_name specified, code does GET /health first, then POST /jobs
     mock_session.get = MagicMock(return_value=_make_mock_response(200, {
         "active_jobs": 0, "queued_jobs": 0, "max_concurrency": 4,
     }))
-    mock_session.post = MagicMock(return_value=_make_mock_response(201, {"job_id": "job-abc", "status": "queued"}))
+
+    def capture_post(url, json=None, **kwargs):
+        if json is not None:
+            captured_payload.update(json)
+        return _make_mock_response(201, {"job_id": "job-abc", "status": "queued"})
+
+    mock_session.post = MagicMock(side_effect=capture_post)
 
     with patch.object(spawner, '_get_http_session', return_value=mock_session):
         result = await spawner.call_tool(
@@ -854,6 +880,7 @@ async def test_spawn_remote_session_submits_job_and_returns_job_id():
     assert data["job_id"] == "job-abc"
     assert data["worker_name"] == "worker-1"
     assert mock_session.post.called
+    assert captured_payload["prompt"] == "do the thing"
 
 
 @pytest.mark.asyncio
@@ -929,8 +956,8 @@ async def test_list_remote_workers_returns_one_entry_per_worker():
 
     mock_session = MagicMock()
     mock_session.get = MagicMock(side_effect=[
-        _make_mock_response(200, {"active_jobs": 2, "queued_jobs": 1, "max_concurrency": 4}),
-        _make_mock_response(200, {"active_jobs": 2, "queued_jobs": 1, "max_concurrency": 4}),
+        _make_mock_response(200, {"active_jobs": 2, "queued_jobs": 1, "max_concurrency": 4, "max_jobs": 500}),
+        _make_mock_response(200, {"active_jobs": 2, "queued_jobs": 1, "max_concurrency": 4, "max_jobs": 500}),
     ])
 
     with patch.object(spawner, '_get_http_session', return_value=mock_session):
@@ -944,6 +971,7 @@ async def test_list_remote_workers_returns_one_entry_per_worker():
     for entry in data:
         assert entry["status"] == "ok"
         assert entry["active_jobs"] == 2
+        assert entry["max_jobs"] == 500
 
 
 @pytest.mark.asyncio
@@ -1391,3 +1419,622 @@ async def test_jsonl_token_usage_schema(tmp_working_dir):
         assert token_usage["output_tokens"] == 75
     finally:
         os.unlink(log_path)
+
+# ==============================================================================
+# _load_roles tests
+# ==============================================================================
+
+class TestLoadRoles:
+    def test_load_roles_from_env_file(self, tmp_path, monkeypatch):
+        roles_file = tmp_path / "roles.json"
+        roles_file.write_text(json.dumps([
+            {"name": "test-role", "description": "A test role", "allowed_tools": ["Read"]},
+        ]))
+        monkeypatch.setenv("OUTPOST_ROLES_FILE", str(roles_file))
+        roles = spawner._load_roles()
+        assert "test-role" in roles
+        assert roles["test-role"]["allowed_tools"] == ["Read"]
+
+    def test_load_roles_skips_entries_missing_name(self, tmp_path, monkeypatch):
+        roles_file = tmp_path / "roles.json"
+        roles_file.write_text(json.dumps([
+            {"description": "no name field"},
+            {"name": "valid-role", "description": "has a name"},
+        ]))
+        monkeypatch.setenv("OUTPOST_ROLES_FILE", str(roles_file))
+        roles = spawner._load_roles()
+        assert "valid-role" in roles
+        # entries without "name" must not appear
+        for key in roles:
+            assert key != ""
+
+    def test_user_roles_override_builtin_on_collision(self, tmp_path, monkeypatch):
+        roles_file = tmp_path / "roles.json"
+        # Override the built-in "worker" role
+        roles_file.write_text(json.dumps([
+            {"name": "worker", "description": "overridden", "allowed_tools": ["Read"]},
+        ]))
+        monkeypatch.setenv("OUTPOST_ROLES_FILE", str(roles_file))
+        roles = spawner._load_roles()
+        assert roles["worker"]["description"] == "overridden"
+
+
+@pytest.mark.asyncio
+async def test_poll_remote_job_completed_includes_timestamp_fields():
+    """poll_remote_job for a completed job includes created_at, started_at, completed_at when present."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+
+    mock_session = MagicMock()
+    mock_session.get = MagicMock(return_value=_make_mock_response(200, {
+        "status": "completed",
+        "output": "done",
+        "exit_code": 0,
+        "created_at": "2026-03-16T10:00:00.000Z",
+        "started_at": "2026-03-16T10:00:01.000Z",
+        "completed_at": "2026-03-16T10:05:00.000Z",
+    }))
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "poll_remote_job",
+            {"job_id": "job-ts-test", "worker_name": "worker-1"},
+        )
+
+    data = _parse_response(result)
+    assert data["created_at"] == "2026-03-16T10:00:00.000Z"
+    assert data["started_at"] == "2026-03-16T10:00:01.000Z"
+    assert data["completed_at"] == "2026-03-16T10:05:00.000Z"
+
+
+@pytest.mark.asyncio
+async def test_poll_remote_job_running_omits_absent_timestamp_fields():
+    """poll_remote_job for a running job does not include timestamp fields that are absent in the response."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+
+    mock_session = MagicMock()
+    # Running job: remote worker returns started_at but not completed_at
+    mock_session.get = MagicMock(return_value=_make_mock_response(200, {
+        "status": "running",
+        "started_at": "2026-03-16T10:00:01.000Z",
+    }))
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "poll_remote_job",
+            {"job_id": "job-running-ts", "worker_name": "worker-1"},
+        )
+
+    data = _parse_response(result)
+    assert data["started_at"] == "2026-03-16T10:00:01.000Z"
+    assert "completed_at" not in data
+
+
+@pytest.mark.asyncio
+async def test_poll_remote_job_found_wins_over_auth_error():
+    """When one worker returns a found result and another returns 401, the found result is returned."""
+    _configure_workers([
+        {"name": "worker-auth-fail", "url": "http://auth-fail.example.com", "api_key": "bad-key"},
+        {"name": "worker-has-job", "url": "http://has-job.example.com", "api_key": "good-key"},
+    ])
+
+    def side_effect_get(url, **kwargs):
+        if "auth-fail" in url:
+            return _make_mock_response(401, {"detail": "Invalid API key"})
+        # worker-has-job has the result
+        return _make_mock_response(200, {"status": "completed", "output": "done", "exit_code": 0})
+
+    mock_session = MagicMock()
+    mock_session.get = MagicMock(side_effect=side_effect_get)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "poll_remote_job",
+            {"job_id": "job-abc"},
+        )
+
+    data = _parse_response(result)
+    assert "error" not in data, f"Expected found result, got error: {data}"
+    assert data["status"] == "completed"
+    assert data["output"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_poll_remote_job_all_auth_errors_returns_error():
+    """When all workers return 401, an auth error is returned."""
+    _configure_workers([
+        {"name": "worker-1", "url": "http://worker1.example.com", "api_key": "bad-key-1"},
+        {"name": "worker-2", "url": "http://worker2.example.com", "api_key": "bad-key-2"},
+    ])
+
+    mock_session = MagicMock()
+    mock_session.get = MagicMock(return_value=_make_mock_response(401, {"detail": "Invalid API key"}))
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "poll_remote_job",
+            {"job_id": "job-xyz"},
+        )
+
+    data = _parse_response(result)
+    assert "error" in data
+    assert "Authentication failed" in data["error"]
+
+
+# ---------------------------------------------------------------------------
+# 24. Remote Session Role Constraints Tests
+# ---------------------------------------------------------------------------
+
+_REVIEWER_ROLE = {
+    "name": "reviewer",
+    "system_prompt": "You are a code reviewer.",
+    "allowed_tools": ["Read", "Glob"],
+    "max_turns": 5,
+    "permission_mode": "default",
+    "description": "Read-only code review role",
+}
+
+
+@pytest.mark.asyncio
+async def test_spawn_remote_session_role_name_resolves_constraints():
+    """spawn_remote_session with a known role name propagates allowed_tools and permission_mode from the role."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+    spawner._roles = {"reviewer": _REVIEWER_ROLE}
+
+    captured_payload = {}
+
+    mock_resp = MagicMock()
+    mock_resp.status = 201
+    mock_resp.json = AsyncMock(return_value={"job_id": "job-role-test", "status": "queued"})
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_resp)
+    cm.__aexit__ = AsyncMock(return_value=False)
+
+    mock_session = MagicMock()
+    mock_session.get = MagicMock(return_value=_make_mock_response(200, {
+        "active_jobs": 0, "queued_jobs": 0, "max_concurrency": 4,
+    }))
+
+    def capture_post(url, json=None, **kwargs):
+        if json is not None:
+            captured_payload.update(json)
+        return cm
+
+    mock_session.post = MagicMock(side_effect=capture_post)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "spawn_remote_session",
+            {"prompt": "review this code", "working_dir": "/tmp", "role": "reviewer"},
+        )
+
+    data = _parse_response(result)
+    assert data["job_id"] == "job-role-test"
+    assert captured_payload["allowed_tools"] == ["Read", "Glob"]
+    assert captured_payload["permission_mode"] == "default"
+    assert captured_payload["role"] == "reviewer"
+
+
+@pytest.mark.asyncio
+async def test_spawn_remote_session_unknown_role_returns_error():
+    """spawn_remote_session with an unknown role name returns an error without making any HTTP call."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+    spawner._roles = {"reviewer": _REVIEWER_ROLE}
+
+    mock_session = MagicMock()
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "spawn_remote_session",
+            {"prompt": "do something", "working_dir": "/tmp", "role": "nonexistent"},
+        )
+
+    data = _parse_response(result)
+    assert "error" in data
+    assert "nonexistent" in data["error"]
+    mock_session.post.assert_not_called()
+    mock_session.get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_spawn_remote_session_inline_role_dict_passes_through():
+    """spawn_remote_session with an inline role dict uses the dict's fields directly."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+
+    inline_role = {"name": "custom", "allowed_tools": ["Read"], "permission_mode": "default"}
+    captured_payload = {}
+
+    mock_resp = MagicMock()
+    mock_resp.status = 201
+    mock_resp.json = AsyncMock(return_value={"job_id": "job-inline-role", "status": "queued"})
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_resp)
+    cm.__aexit__ = AsyncMock(return_value=False)
+
+    mock_session = MagicMock()
+    mock_session.get = MagicMock(return_value=_make_mock_response(200, {
+        "active_jobs": 0, "queued_jobs": 0, "max_concurrency": 4,
+    }))
+
+    def capture_post(url, json=None, **kwargs):
+        if json is not None:
+            captured_payload.update(json)
+        return cm
+
+    mock_session.post = MagicMock(side_effect=capture_post)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "spawn_remote_session",
+            {"prompt": "inline role task", "working_dir": "/tmp", "role": inline_role},
+        )
+
+    data = _parse_response(result)
+    assert data["job_id"] == "job-inline-role"
+    assert captured_payload["allowed_tools"] == ["Read"]
+    assert captured_payload["permission_mode"] == "default"
+    assert captured_payload["role"] == "custom"
+
+
+@pytest.mark.asyncio
+async def test_spawn_remote_session_named_role_with_system_prompt_injects_into_prompt():
+    """spawn_remote_session with a named role that has system_prompt prepends it to the prompt."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+    spawner._roles = {"reviewer": _REVIEWER_ROLE}
+
+    captured_payload = {}
+
+    mock_resp = MagicMock()
+    mock_resp.status = 201
+    mock_resp.json = AsyncMock(return_value={"job_id": "job-prompt-inject", "status": "queued"})
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_resp)
+    cm.__aexit__ = AsyncMock(return_value=False)
+
+    mock_session = MagicMock()
+    mock_session.get = MagicMock(return_value=_make_mock_response(200, {
+        "active_jobs": 0, "queued_jobs": 0, "max_concurrency": 4,
+    }))
+
+    def capture_post(url, json=None, **kwargs):
+        if json is not None:
+            captured_payload.update(json)
+        return cm
+
+    mock_session.post = MagicMock(side_effect=capture_post)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "spawn_remote_session",
+            {"prompt": "review this code", "working_dir": "/tmp", "role": "reviewer"},
+        )
+
+    data = _parse_response(result)
+    assert data["job_id"] == "job-prompt-inject"
+    expected_prompt = "[ROLE: reviewer]\nYou are a code reviewer.\n\nreview this code"
+    assert captured_payload["prompt"] == expected_prompt
+
+
+@pytest.mark.asyncio
+async def test_spawn_remote_session_role_without_system_prompt_leaves_prompt_unchanged():
+    """spawn_remote_session with a role that has no system_prompt sends the prompt unchanged."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+    worker_role = {"name": "worker", "description": "General-purpose worker agent."}
+    spawner._roles = {"worker": worker_role}
+
+    captured_payload = {}
+
+    mock_resp = MagicMock()
+    mock_resp.status = 201
+    mock_resp.json = AsyncMock(return_value={"job_id": "job-no-inject", "status": "queued"})
+    cm = MagicMock()
+    cm.__aenter__ = AsyncMock(return_value=mock_resp)
+    cm.__aexit__ = AsyncMock(return_value=False)
+
+    mock_session = MagicMock()
+    mock_session.get = MagicMock(return_value=_make_mock_response(200, {
+        "active_jobs": 0, "queued_jobs": 0, "max_concurrency": 4,
+    }))
+
+    def capture_post(url, json=None, **kwargs):
+        if json is not None:
+            captured_payload.update(json)
+        return cm
+
+    mock_session.post = MagicMock(side_effect=capture_post)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "spawn_remote_session",
+            {"prompt": "do some work", "working_dir": "/tmp", "role": "worker"},
+        )
+
+    data = _parse_response(result)
+    assert data["job_id"] == "job-no-inject"
+    assert captured_payload["prompt"] == "do some work"
+
+
+@pytest.mark.asyncio
+async def test_spawn_remote_session_inline_role_dict_with_system_prompt_injects_into_prompt():
+    """spawn_remote_session with inline role dict that has system_prompt prepends it to the prompt."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+
+    inline_role = {"name": "custom", "system_prompt": "You are a custom agent."}
+    captured_payload = {}
+
+    mock_session = MagicMock()
+    mock_session.get = MagicMock(return_value=_make_mock_response(200, {
+        "active_jobs": 0, "queued_jobs": 0, "max_concurrency": 4,
+    }))
+
+    def capture_post(url, json=None, **kwargs):
+        if json is not None:
+            captured_payload.update(json)
+        return _make_mock_response(201, {"job_id": "job-inline-prompt", "status": "queued"})
+
+    mock_session.post = MagicMock(side_effect=capture_post)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "spawn_remote_session",
+            {"prompt": "the task", "working_dir": "/tmp", "role": inline_role},
+        )
+
+    data = _parse_response(result)
+    assert data["job_id"] == "job-inline-prompt"
+    assert captured_payload["prompt"] == "[ROLE: custom]\nYou are a custom agent.\n\nthe task"
+
+
+# ---------------------------------------------------------------------------
+# 25. cancel_remote_job Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_cancel_remote_job_success_with_worker_name():
+    """cancel_remote_job with worker_name returns cancelled status when worker returns 204."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+
+    mock_session = MagicMock()
+    mock_session.delete = MagicMock(return_value=_make_mock_response(204, {}))
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "cancel_remote_job",
+            {"job_id": "job-cancel-123", "worker_name": "worker-1"},
+        )
+
+    data = _parse_response(result)
+    assert data["job_id"] == "job-cancel-123"
+    assert data["status"] == "cancelled"
+    assert data["worker_name"] == "worker-1"
+    assert "error" not in data
+
+
+@pytest.mark.asyncio
+async def test_cancel_remote_job_409_conflict_response():
+    """cancel_remote_job returns error with detail when worker returns 409."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+
+    mock_session = MagicMock()
+    mock_session.delete = MagicMock(
+        return_value=_make_mock_response(409, {"detail": "Job already completed"})
+    )
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "cancel_remote_job",
+            {"job_id": "job-done-456", "worker_name": "worker-1"},
+        )
+
+    data = _parse_response(result)
+    assert "error" in data
+    assert data["error"] == "Job already completed"
+    assert data["worker_name"] == "worker-1"
+
+
+@pytest.mark.asyncio
+async def test_cancel_remote_job_404_with_worker_name():
+    """cancel_remote_job returns error when worker returns 404."""
+    _configure_workers([{"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"}])
+
+    mock_session = MagicMock()
+    mock_session.delete = MagicMock(return_value=_make_mock_response(404, {}))
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "cancel_remote_job",
+            {"job_id": "job-missing-789", "worker_name": "worker-1"},
+        )
+
+    data = _parse_response(result)
+    assert "error" in data
+
+
+@pytest.mark.asyncio
+async def test_cancel_remote_job_multi_worker_first_404_second_204():
+    """cancel_remote_job fan-out: first worker returns 404, second returns 204; 204 result is returned."""
+    _configure_workers([
+        {"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"},
+        {"name": "worker-2", "url": "http://worker2.example.com", "api_key": "key2"},
+    ])
+
+    def side_effect_delete(url, **kwargs):
+        if "worker1" in url:
+            return _make_mock_response(404, {})
+        return _make_mock_response(204, {})
+
+    mock_session = MagicMock()
+    mock_session.delete = MagicMock(side_effect=side_effect_delete)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "cancel_remote_job",
+            {"job_id": "job-fan-out-abc"},
+        )
+
+    data = _parse_response(result)
+    assert data["status"] == "cancelled"
+    assert data["job_id"] == "job-fan-out-abc"
+    assert data["worker_name"] == "worker-2"
+    assert "error" not in data
+
+
+@pytest.mark.asyncio
+async def test_cancel_remote_job_all_workers_404_returns_not_found():
+    """cancel_remote_job returns not-found error when all workers return 404."""
+    _configure_workers([
+        {"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"},
+        {"name": "worker-2", "url": "http://worker2.example.com", "api_key": "key2"},
+    ])
+
+    mock_session = MagicMock()
+    mock_session.delete = MagicMock(return_value=_make_mock_response(404, {}))
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "cancel_remote_job",
+            {"job_id": "job-nowhere"},
+        )
+
+    data = _parse_response(result)
+    assert "error" in data
+    assert "not found" in data["error"].lower()
+
+
+@pytest.mark.asyncio
+async def test_cancel_remote_job_no_workers_returns_error():
+    """cancel_remote_job with no configured workers returns standard no-workers error."""
+    _configure_workers([])
+
+    with patch.object(spawner, '_get_http_session', return_value=MagicMock()):
+        result = await spawner.call_tool(
+            "cancel_remote_job",
+            {"job_id": "job-abc"},
+        )
+
+    data = _parse_response(result)
+    assert "error" in data
+
+
+@pytest.mark.asyncio
+async def test_cancel_remote_job_exception_on_first_worker_success_on_second():
+    """cancel_remote_job fan-out: exception on worker-1 is skipped; worker-2 returns 204 and is used."""
+    _configure_workers([
+        {"name": "worker-1", "url": "http://worker1.example.com", "api_key": "key1"},
+        {"name": "worker-2", "url": "http://worker2.example.com", "api_key": "key2"},
+    ])
+
+    def side_effect_delete(url, **kwargs):
+        if "worker1" in url:
+            raise Exception("simulated connection error")
+        return _make_mock_response(204, {})
+
+    mock_session = MagicMock()
+    mock_session.delete = MagicMock(side_effect=side_effect_delete)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "cancel_remote_job",
+            {"job_id": "job-exc-fanout"},
+        )
+
+    data = _parse_response(result)
+    assert data["status"] == "cancelled"
+    assert data["job_id"] == "job-exc-fanout"
+    assert data["worker_name"] == "worker-2"
+    assert "error" not in data
+
+
+@pytest.mark.asyncio
+async def test_cancel_remote_job_auth_error_on_first_worker_success_on_second():
+    """cancel_remote_job fan-out: 401 on worker-1 is skipped; worker-2 returns 204 and is used."""
+    _configure_workers([
+        {"name": "worker-1", "url": "http://worker1.example.com", "api_key": "bad-key"},
+        {"name": "worker-2", "url": "http://worker2.example.com", "api_key": "key2"},
+    ])
+
+    def side_effect_delete(url, **kwargs):
+        if "worker1" in url:
+            return _make_mock_response(401, {})
+        return _make_mock_response(204, {})
+
+    mock_session = MagicMock()
+    mock_session.delete = MagicMock(side_effect=side_effect_delete)
+
+    with patch.object(spawner, '_get_http_session', return_value=mock_session):
+        result = await spawner.call_tool(
+            "cancel_remote_job",
+            {"job_id": "job-auth-fanout"},
+        )
+
+    data = _parse_response(result)
+    assert data["status"] == "cancelled"
+    assert data["job_id"] == "job-auth-fanout"
+    assert data["worker_name"] == "worker-2"
+
+
+# ---------------------------------------------------------------------------
+# Startup validation: missing api_key warning
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_startup_warns_when_worker_has_no_api_key(caplog):
+    """_warn_missing_worker_keys emits a WARNING containing the worker name when api_key is absent."""
+    import logging as _logging
+    workers = [{"name": "my-worker", "url": "http://example.com"}]
+    with caplog.at_level(_logging.WARNING, logger=spawner.logger.name):
+        spawner._warn_missing_worker_keys(workers, spawner.logger)
+    assert "my-worker" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_startup_warns_via_main_when_worker_has_no_api_key(caplog):
+    """main() emits a WARNING via _warn_missing_worker_keys for a worker missing api_key."""
+    from contextlib import asynccontextmanager
+    import logging as _logging
+
+    @asynccontextmanager
+    async def _fake_stdio_server():
+        # Yield dummy streams then return immediately so main() exits cleanly.
+        yield (AsyncMock(), AsyncMock())
+
+    mock_http_session = MagicMock()
+    mock_http_session.close = AsyncMock()
+
+    workers_json = json.dumps([{"name": "no-key-worker", "url": "http://example.com"}])
+
+    with patch.dict(os.environ, {"OUTPOST_REMOTE_WORKERS": workers_json}):
+        with patch("mcp.server.stdio.stdio_server", _fake_stdio_server):
+            with patch("aiohttp.ClientSession", return_value=mock_http_session):
+                with patch.object(spawner.server, "run", new_callable=AsyncMock):
+                    with caplog.at_level(_logging.WARNING, logger=spawner.logger.name):
+                        await spawner.main()
+
+    assert "no-key-worker" in caplog.text
+
+
+# ---------------------------------------------------------------------------
+# WI-029. FileNotFoundError — missing claude binary
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_spawn_session_file_not_found_returns_structured_error(tmp_working_dir):
+    """FileNotFoundError from subprocess.run returns a structured error with exit_code=1, not a traceback."""
+    with patch("subprocess.run", side_effect=FileNotFoundError("No such file or directory: 'claude'")):
+        result = await spawner.call_tool(
+            "spawn_session",
+            {"prompt": "hello", "working_dir": tmp_working_dir},
+        )
+
+    assert len(result) == 1
+    assert result[0].type == "text"
+    data = json.loads(result[0].text)
+    assert data["exit_code"] == 1
+    assert "error" in data
+    assert "claude" in data["error"]
+    assert "PATH" in data["error"]
+    # No raw Python traceback or exception class name
+    assert "FileNotFoundError" not in data["error"]
+    assert "Traceback" not in data["error"]

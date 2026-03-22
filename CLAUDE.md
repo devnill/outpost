@@ -20,7 +20,7 @@ Outpost serves as the orchestration layer for distributed Claude Code workflows.
 
 ```bash
 cd /path/to/outpost
-pip install -r requirements.txt
+pip install -r mcp/session-spawner/requirements.txt
 ```
 
 ### Running Tests

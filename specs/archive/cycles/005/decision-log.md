@@ -1,0 +1,95 @@
+# Decision Log — Cycle 5
+
+**Produced**: 2026-03-21
+**Scope**: Decisions from cycle 5 execution (WI-018 through WI-024) and findings from cycle 5 final reviews
+**Trigger**: Cycle 4 comprehensive review (1 critical, 6 significant, 11 minor findings; 2026-03-20)
+**Work Items Completed**: 7 (018–024)
+**Final Verdict**: Fail — spec-adherence review identifies two principle violations requiring refinement: session-spawner README contradicts WI-024 implementation (GP-4/P-3), and `cancel_remote_job` is absent from the architecture.md component map and session-spawner README tool list
+**Findings driving refinement**: gap-analysis SG1 (integration tests bypass MCP layer), gap-analysis SG2 / spec-adherence GP-4 violation (README token_usage contract)
+
+---
+
+## Decisions
+
+### D-018: Propagate Role system_prompt to Remote Sessions
+After role resolution in `_handle_spawn_remote_session`, prepend the resolved role's `system_prompt` to `payload["prompt"]` using the same `[ROLE: {label}]\n{system_prompt}\n\n{prompt}` pattern already used in the local `spawn_session` path. Critical finding from cycle 4 (OQ-001): `allowed_tools` and `permission_mode` were propagated by WI-015, but `system_prompt` was not. The `spawn_remote_session` schema was also updated to `oneOf [string, object]` to accept inline role dicts. Resolves OQ-001.
+
+### D-019: Add cancel_remote_job MCP Tool
+Add `cancel_remote_job` as the fifth MCP tool in session-spawner. Issues `DELETE /jobs/{id}` to the named worker (or fans out across all workers). Fan-out early-returns replaced with continue+error-collection during rework so a misconfigured or unreachable worker does not abort cancellation for remaining workers. Resolves OQ-002.
+
+### D-020: LRU Eviction for Job Store
+Add `_evict_terminal_jobs_locked()` to remote-worker, called under `job_store_lock` after each job reaches terminal state. Eviction count capped at `min(needed, len(terminal))` during rework to prevent silent under-eviction. `IDEATE_WORKER_MAX_JOBS` env var (default 1000). `max_jobs` added to health response. Resolves OQ-007.
+
+### D-021: Integration Tests
+Add `mcp/test_integration.py` with 5 tests using a real uvicorn server on port 0. Tests 2 and 3 exercise the remote-worker HTTP API directly rather than calling `_handle_poll_remote_job` and `_handle_cancel_remote_job`; the MCP tool layer for poll/cancel is not exercised end-to-end. This is identified as gap-analysis SG1 and drives cycle 6 refinement. Partially resolves OQ-008.
+
+### D-022: Startup Configuration Validation Warnings
+Add WARNING log messages at startup in both servers when credentials are absent. Resolves OQ-009.
+
+### D-023: README and Architecture Documentation Fixes
+Apply targeted corrections to three documentation artifacts. Resolves OQ-003, OQ-004, OQ-005, OQ-006. Three gaps remain open: `cancel_remote_job` absent from architecture/README tool lists (OQ-014), `IDEATE_WORKER_MAX_JOBS` absent from remote-worker README env var table (OQ-015), `max_jobs` absent from architecture.md health schema (OQ-016).
+
+### D-024: Fix token_usage Null in spawn_session Normal-Path
+Unconditionally assign `response["token_usage"] = outcome_token_usage`. The session-spawner README was not updated to reflect the new always-present contract (lines 73 and 228 still say "Omitted otherwise"). This is identified as gap-analysis SG2 and spec-adherence GP-4/P-3 violation and drives cycle 6 refinement. Resolves OQ-010.
+
+---
+
+## Open Questions
+
+### OQ-012: Integration Tests 2 and 3 bypass the MCP tool layer
+WI-021 Tests 2 and 3 call the remote-worker HTTP API directly. `_handle_poll_remote_job` and `_handle_cancel_remote_job` are not exercised end-to-end. Fix: replace direct HTTP calls in Tests 2 and 3 with calls to the respective MCP handlers using the configured in-process worker. **Drives cycle 6 refinement.**
+
+### OQ-013: session-spawner README contradicts WI-024 token_usage contract
+Lines 73 and 228 state "token_usage is included when...Omitted otherwise." Implementation always includes `token_usage: null`. Fix: update both lines to reflect always-present null behavior. **Drives cycle 6 refinement.**
+
+### OQ-014: cancel_remote_job absent from architecture.md and session-spawner README tool list
+WI-019 added the fifth MCP tool; WI-023 didn't add it to documentation. Fix: add `cancel_remote_job` to architecture.md component map and session-spawner README tool table.
+
+### OQ-015: IDEATE_WORKER_MAX_JOBS absent from remote-worker README env var table
+WI-020 added the env var; WI-023 missed it. Fix: add row to remote-worker README env var table.
+
+### OQ-016: architecture.md health endpoint schema missing max_jobs field
+WI-020 added the field to the response; architecture.md not updated. Fix: add `max_jobs` to health schema.
+
+### OQ-017: pytest mcp/ fails due to duplicate test_server.py basenames
+No `__init__.py` in either test directory. Fix: add empty `__init__.py` to both directories, or rename test files.
+
+### OQ-018: _evict_terminal_jobs_locked has no runtime lock enforcement
+Contract is by naming convention only. Fix: add a comment at the function definition.
+
+### OQ-019: integration test worker_server fixture does not reset _max_jobs
+Risk arises only if test files are combined. Fix: add `worker_mod._max_jobs = 1000` to fixture teardown.
+
+---
+
+## Resolved Questions (Cycle 5)
+
+| OQ | Resolution | WI |
+|----|-----------|-----|
+| OQ-001: system_prompt not propagated | Fixed — prepended in _handle_spawn_remote_session | 018 |
+| OQ-002: No MCP cancel tool | Fixed — cancel_remote_job added | 019 |
+| OQ-003: README cancel eligibility | Fixed — README updated for running jobs | 023 |
+| OQ-004: Architecture job-states table | Fixed — states table corrected | 023 |
+| OQ-005: OUTPOST_TIMEOUT annotation | Fixed — annotated not-implemented | 023 |
+| OQ-006: Role documentation contradiction | Fixed — both READMEs updated | 023 |
+| OQ-007: Job store memory leak | Fixed — LRU eviction with IDEATE_WORKER_MAX_JOBS | 020 |
+| OQ-008: No integration tests | Partially resolved — 5 tests; Tests 2/3 bypass MCP layer (OQ-012) | 021 |
+| OQ-009: No startup validation | Fixed — WARNING logs at startup | 022 |
+| OQ-010: token_usage omitted not null | Fixed in code; README not updated (OQ-013) | 024 |
+| OQ-011: proc.terminate() unguarded | Not addressed this cycle | — |
+
+---
+
+## Cross-References
+
+### CR1: token_usage README / implementation contradiction
+Spec-adherence (GP-4/P-3 violation) and gap-analysis (SG2) independently reached the same finding. Both drive cycle 6 refinement. Root cause: WI-024 fixed the code; no work item owned the README statement of the contract.
+
+### CR2: cancel_remote_job documentation omission
+Spec-adherence Architecture Deviation: `cancel_remote_job` absent from architecture.md and session-spawner README. WI-019 added the tool; WI-023 updated adjacent documentation without sweeping tool lists.
+
+### CR3: WI-020 documentation gaps
+Spec-adherence (minor) and gap-analysis (MG1) both identified `IDEATE_WORKER_MAX_JOBS` absent from remote-worker README env var table. Spec-adherence additionally identified `max_jobs` missing from health schema (OQ-016). Same pattern as CR2: implementation change not reflected in documentation.
+
+### CR4: Refinement drivers
+SG1 (integration test structural gap — test bodies need replacement) and SG2 (documentation accuracy — two README lines need updating) are the cycle 6 refinement triggers. Both arise from the same pattern: work items correctly implemented changes, but the documentation statement of the changed contract was not part of any work item's explicit scope.

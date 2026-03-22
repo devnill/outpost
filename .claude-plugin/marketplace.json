@@ -11,7 +11,7 @@
     {
       "name": "outpost",
       "source": "./",
-      "description": "MCP orchestration infrastructure for delegating work to separate Claude Code instances.",
+      "description": "MCP orchestration infrastructure for delegating work to separate Claude Code instances, supporting both local subprocess and remote process execution.",
       "version": "0.1.0"
     }
   ]

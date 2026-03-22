@@ -30,13 +30,13 @@ Or clone and add manually to your Claude Code plugin search path.
 
 ```bash
 cd /path/to/outpost
-pip install -r requirements.txt
+pip install -r mcp/session-spawner/requirements.txt
 ```
 
 2. Register the MCP server:
 
 ```bash
-claude mcp add outpost -- python /path/to/outpost/mcp/server.py
+claude mcp add outpost -- python /path/to/outpost/mcp/session-spawner/server.py
 ```
 
 ## Usage
@@ -44,10 +44,10 @@ claude mcp add outpost -- python /path/to/outpost/mcp/server.py
 Once configured, Outpost provides the following MCP tools:
 
 - `spawn_session` — Spawn a local Claude Code session with a prompt
-- `poll_session` — Check status and retrieve results from a spawned session
 - `spawn_remote_session` — Submit a job to a remote worker daemon
 - `poll_remote_job` — Retrieve results from a remote job
 - `list_remote_workers` — Inspect worker health and load
+- `cancel_remote_job` — Cancel a queued or running remote job
 
 ## Configuration
 
@@ -58,6 +58,10 @@ Once configured, Outpost provides the following MCP tools:
 ```bash
 export OUTPOST_REMOTE_WORKERS='[{"name":"gpu-box-1","url":"http://gpu-box-1:7432","api_key":"your-secret-key"}]'
 ```
+
+For the full list of environment variables, see:
+- `mcp/session-spawner/README.md` — session-spawner configuration
+- `mcp/remote-worker/README.md` — remote-worker configuration
 
 ## Architecture
 
@@ -75,7 +79,7 @@ Outpost is designed as a thin orchestration layer:
 pytest
 
 # Run tests with coverage
-pytest --cov=mcp
+pytest --cov=mcp/session-spawner
 ```
 
 ## License

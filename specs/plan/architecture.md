@@ -6,7 +6,7 @@
 
 | Server | Purpose | Tools | Key Dependencies |
 |--------|---------|-------|------------------|
-| session-spawner | Local session spawning | `spawn_session`, `poll_session` | Claude Code CLI, asyncio |
+| session-spawner | Local session spawning | `spawn_session`, `spawn_remote_session`, `poll_remote_job`, `cancel_remote_job`, `list_remote_workers` | Claude Code CLI, asyncio |
 | remote-worker | HTTP daemon for remote jobs | (REST API, not MCP) | FastAPI, uvicorn |
 
 ### Agents
@@ -57,7 +57,7 @@ Output captured, truncated, returned
 ```
 Claude Code Session
        |
-       | spawn_remote_session(prompt, worker_url, ...)
+       | spawn_remote_session(prompt, worker_name, ...)
        v
 +------------------+
 | session-spawner  |
@@ -133,28 +133,20 @@ Result returned to caller
 - `allowed_tools` (optional): Restrict available tools
 
 **Output**:
-- `session_id`: Unique identifier for the session
-- `status`: "running"
-- `started_at`: ISO timestamp
+- `output`: Session stdout (truncated if exceeds limit)
+- `exit_code`: Process exit code
+- `session_id`: UUID for the session
+- `duration_ms`: Execution time in milliseconds
+- `error`: Error message if failed
+- `timed_out`: Boolean (present when true)
+- `token_usage`: Token usage object or null
+- `output_truncated`: Boolean (present when true)
+- `full_output_path`: Path to full output file (present when output was truncated)
 
 **Enforcement**:
 - Depth limit enforced via `OUTPOST_SPAWN_DEPTH` environment variable
 - Prompt size limit: 100KB
 - Concurrency limit via semaphore (default: 5)
-
-### `poll_session`
-
-**Purpose**: Check status and retrieve results from a spawned session.
-
-**Input**:
-- `session_id` (required): Session ID from spawn_session
-
-**Output**:
-- `status`: "running" | "completed" | "failed" | "timeout"
-- `output`: Session output (truncated to max_output_bytes)
-- `exit_code`: Process exit code (if completed)
-- `duration_ms`: Execution duration in milliseconds
-- `error`: Error message (if failed)
 
 ### `spawn_remote_session`
 
@@ -163,7 +155,7 @@ Result returned to caller
 **Input**:
 - `prompt` (required): The prompt for the remote session
 - `working_dir` (required): Working directory on the remote host
-- `worker_url` (optional): Worker URL (uses first configured worker if not specified)
+- `worker_name` (optional): Worker name (uses first configured worker if not specified)
 - `role` (optional): Role definition name
 - `max_turns` (optional): Maximum turns (default: 30)
 - `timeout` (optional): Timeout in seconds (default: 600)
@@ -181,7 +173,7 @@ Result returned to caller
 
 **Input**:
 - `job_id` (required): Job ID from spawn_remote_session
-- `worker_url` (optional): Worker URL (uses first configured worker if not specified)
+- `worker_name` (optional): Worker name (uses first configured worker if not specified)
 
 **Output**:
 - `status`: "queued" | "running" | "completed" | "failed" | "cancelled"
@@ -201,10 +193,11 @@ Result returned to caller
 - Array of worker status objects:
   - `name`: Worker name
   - `url`: Worker URL
-  - `status`: "healthy" | "unhealthy" | "unreachable"
+  - `status`: "ok" (from health endpoint) or error description
   - `active_jobs`: Number of running jobs
   - `queued_jobs`: Number of queued jobs
   - `max_concurrency`: Maximum concurrent jobs
+  - `max_jobs`: Maximum number of jobs retained in the in-memory store
 
 ---
 
@@ -218,7 +211,7 @@ Result returned to caller
 | POST | `/jobs` | Submit a new job |
 | GET | `/jobs` | List all jobs |
 | GET | `/jobs/{job_id}` | Get job status and result |
-| DELETE | `/jobs/{job_id}` | Cancel a queued job |
+| DELETE | `/jobs/{job_id}` | Cancel a queued or running job |
 
 ### Job States
 
@@ -228,7 +221,7 @@ Result returned to caller
 | running | Currently executing |
 | completed | Finished successfully |
 | failed | Finished with error |
-| cancelled | Cancelled while queued |
+| cancelled | Cancelled while queued or running |
 
 ### Authentication
 
@@ -308,11 +301,13 @@ All endpoints require `X-API-Key` header matching `IDEATE_WORKER_API_KEY` enviro
 | Variable | Component | Purpose | Default |
 |----------|-----------|---------|---------|
 | `OUTPOST_MAX_DEPTH` | session-spawner | Maximum recursion depth | 3 |
-| `OUTPOST_CONCURRENCY` | session-spawner | Max concurrent sessions | 5 |
-| `OUTPOST_TIMEOUT` | session-spawner | Default session timeout | 600 |
+| `OUTPOST_MAX_CONCURRENCY` | session-spawner | Max concurrent sessions | 5 |
+| `OUTPOST_TIMEOUT` | session-spawner | Default session timeout *(not implemented)* | 600 |
 | `OUTPOST_SAFE_ROOT` | session-spawner | Restrict file access | None |
 | `OUTPOST_REMOTE_WORKERS` | session-spawner | JSON array of worker configs | [] |
 | `IDEATE_WORKER_API_KEY` | remote-worker | API key for authentication | Required |
 | `IDEATE_WORKER_MAX_CONCURRENCY` | remote-worker | Max concurrent jobs | 3 |
+| `IDEATE_WORKER_MAX_JOBS` | remote-worker | Max jobs retained in the in-memory store before LRU eviction | 1000 |
 | `IDEATE_WORKER_PORT` | remote-worker | Listen port | 7432 |
 | `IDEATE_WORKER_BASE_DIR` | remote-worker | Restrict working directories | None |
+| `IDEATE_WORKER_HOST` | remote-worker | Listen host address | 0.0.0.0 |

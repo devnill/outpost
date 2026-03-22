@@ -10,7 +10,7 @@
   "mcpServers": {
     "outpost": {
       "command": "python",
-      "args": ["${pluginPath}/mcp/server.py"],
+      "args": ["${pluginPath}/mcp/session-spawner/server.py"],
       "env": {}
     }
   }

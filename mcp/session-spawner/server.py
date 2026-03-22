@@ -167,8 +167,8 @@ async def list_tools() -> list[Tool]:
                         ),
                     },
                     "role": {
-                        "type": "string",
-                        "description": "Optional role name to pass to the remote worker.",
+                        "oneOf": [{"type": "string"}, {"type": "object"}],
+                        "description": "Optional role name (string) or inline role dict to pass to the remote worker.",
                     },
                     "max_turns": {
                         "type": "integer",
@@ -223,6 +223,33 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="cancel_remote_job",
+            description=(
+                "Cancel a previously submitted remote job. "
+                "Cancels jobs in 'queued' or 'running' state. "
+                "Returns 'cancelled' status on success, or an error if the job cannot be cancelled "
+                "(already completed, failed, or not found)."
+            ),
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "The job ID returned by spawn_remote_session.",
+                    },
+                    "worker_name": {
+                        "type": "string",
+                        "description": (
+                            "Name of the worker that owns this job. "
+                            "If omitted, all configured workers are tried in config order "
+                            "until the job is found."
+                        ),
+                    },
+                },
+                "required": ["job_id"],
+            },
+        ),
+        Tool(
             name="list_remote_workers",
             description=(
                 "Return the list of configured remote workers with live health data. "
@@ -244,6 +271,8 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         return await _handle_spawn_remote_session(arguments)
     if name == "poll_remote_job":
         return await _handle_poll_remote_job(arguments)
+    if name == "cancel_remote_job":
+        return await _handle_cancel_remote_job(arguments)
     if name == "list_remote_workers":
         return await _handle_list_remote_workers(arguments)
     # Fix 6: Unknown tool error — raise MCP protocol error instead of returning TextContent
@@ -453,6 +482,11 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 env=env,
                 cwd=working_dir,
             )
+    except FileNotFoundError:
+        return [TextContent(type="text", text=json.dumps({
+            "error": "claude CLI not found on PATH. Ensure Claude Code is installed and the 'claude' binary is accessible in the server process environment.",
+            "exit_code": 1,
+        }))]
     except subprocess.TimeoutExpired as e:
         # Fix 2: TimeoutExpired "None" fix — e.stdout/e.stderr may be None or bytes
         # With text=True, they could be str or None. With capture_output, they are
@@ -540,25 +574,36 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     _print_status_table()
 
     if timed_out:
-        return [
-            TextContent(
-                type="text",
-                text=json.dumps(
-                    {
-                        "output": partial_stdout[:DEFAULT_MAX_OUTPUT_BYTES],
-                        "exit_code": -1,
-                        "session_id": "",
-                        "duration_ms": duration_ms,
-                        "error": (
-                            f"Session timed out after {timeout}s. "
-                            f"Partial stderr: {partial_stderr[:1000]}"
-                        ),
-                        "timed_out": True,
-                        "token_usage": None,
-                    }
-                ),
-            )
-        ]
+        timeout_output = partial_stdout
+        timeout_overflow_path = None
+        partial_bytes = partial_stdout.encode("utf-8")
+        if len(partial_bytes) > DEFAULT_MAX_OUTPUT_BYTES:
+            with tempfile.NamedTemporaryFile(
+                mode="w",
+                prefix="outpost-session-",
+                suffix=".txt",
+                dir=working_dir,
+                delete=False,
+            ) as f:
+                f.write(partial_stdout)
+                timeout_overflow_path = f.name
+            timeout_output = partial_bytes[:DEFAULT_MAX_OUTPUT_BYTES].decode("utf-8", errors="ignore")
+        timeout_response: dict = {
+            "output": timeout_output,
+            "exit_code": -1,
+            "session_id": "",
+            "duration_ms": duration_ms,
+            "error": (
+                f"Session timed out after {timeout}s. "
+                f"Partial stderr: {partial_stderr[:1000]}"
+            ),
+            "timed_out": True,
+            "token_usage": None,
+        }
+        if timeout_overflow_path:
+            timeout_response["output_truncated"] = True
+            timeout_response["full_output_path"] = timeout_overflow_path
+        return [TextContent(type="text", text=json.dumps(timeout_response))]
 
     response = {
         "output": stdout,
@@ -568,8 +613,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
         "error": result.stderr if result.returncode != 0 else None,
     }
 
-    if outcome_token_usage is not None:
-        response["token_usage"] = outcome_token_usage
+    response["token_usage"] = outcome_token_usage
 
     if output_truncated:
         response["output_truncated"] = True
@@ -643,6 +687,7 @@ async def _fetch_worker_health(worker: dict) -> dict:
                 "active_jobs": data.get("active_jobs", 0),
                 "queued_jobs": data.get("queued_jobs", 0),
                 "max_concurrency": data.get("max_concurrency"),
+                "max_jobs": data.get("max_jobs"),
             }
     except Exception as exc:
         logger.debug("Health check failed for worker '%s': %s", worker["name"], exc)
@@ -667,6 +712,25 @@ async def _handle_list_remote_workers(_arguments: dict) -> list[TextContent]:
 async def _handle_spawn_remote_session(arguments: dict) -> list[TextContent]:
     if not _remote_workers:
         return _no_workers_error("spawn_remote_session")
+
+    # Resolve role before making any HTTP calls so unknown role errors are returned early
+    role_arg = arguments.get("role")
+    resolved_role: dict | None = None
+
+    if isinstance(role_arg, str):
+        if role_arg not in _roles:
+            return [TextContent(type="text", text=json.dumps({
+                "error": f"Unknown role: '{role_arg}'. Available roles: {list(_roles.keys())}"
+            }))]
+        resolved_role = _roles[role_arg]
+    elif isinstance(role_arg, dict):
+        resolved_role = role_arg
+
+    # system_prompt: prepend to the prompt (matching local spawn_session behavior at lines 289-292)
+    if resolved_role and resolved_role.get("system_prompt"):
+        role_label = role_arg if isinstance(role_arg, str) else "custom"
+        arguments = dict(arguments)  # avoid mutating the original dict
+        arguments["prompt"] = f"[ROLE: {role_label}]\n{resolved_role['system_prompt']}\n\n{arguments['prompt']}"
 
     worker_name = arguments.get("worker_name")
     selected_worker: dict | None = None
@@ -728,14 +792,19 @@ async def _handle_spawn_remote_session(arguments: dict) -> list[TextContent]:
     payload: dict = {
         "prompt": arguments["prompt"],
         "working_dir": arguments["working_dir"],
-        "max_turns": arguments.get("max_turns", DEFAULT_MAX_TURNS),
+        "max_turns": arguments.get("max_turns", resolved_role.get("max_turns", DEFAULT_MAX_TURNS) if resolved_role else DEFAULT_MAX_TURNS),
         "timeout": arguments.get("timeout", DEFAULT_TIMEOUT),
-        "permission_mode": arguments.get("permission_mode", DEFAULT_PERMISSION_MODE),
+        "permission_mode": arguments.get("permission_mode", resolved_role.get("permission_mode", DEFAULT_PERMISSION_MODE) if resolved_role else DEFAULT_PERMISSION_MODE),
     }
-    if "role" in arguments and arguments["role"] is not None:
-        payload["role"] = arguments["role"]
+    # Role allowed_tools: apply from role if caller did not specify
+    if resolved_role and resolved_role.get("allowed_tools") and "allowed_tools" not in arguments:
+        payload["allowed_tools"] = resolved_role["allowed_tools"]
+    # Explicit allowed_tools from caller always wins
     if "allowed_tools" in arguments and arguments["allowed_tools"] is not None:
         payload["allowed_tools"] = arguments["allowed_tools"]
+    # Keep role label in payload for observability
+    if role_arg:
+        payload["role"] = role_arg if isinstance(role_arg, str) else role_arg.get("name", "custom")
 
     conn_timeout = aiohttp.ClientTimeout(total=30)
     try:
@@ -830,7 +899,8 @@ async def _handle_poll_remote_job(arguments: dict) -> list[TextContent]:
                 if resp.status != 200:
                     return {"_status": "error", "_worker": w["name"], "_msg": f"HTTP {resp.status}: {body}"}
                 result: dict = {"_status": "found", "job_id": job_id, "status": body.get("status", "unknown")}
-                for field in ("output", "git_diff", "exit_code", "duration_ms", "error"):
+                for field in ("output", "git_diff", "exit_code", "duration_ms", "error",
+                              "created_at", "started_at", "completed_at"):
                     if field in body:
                         result[field] = body[field]
                 return result
@@ -840,7 +910,12 @@ async def _handle_poll_remote_job(arguments: dict) -> list[TextContent]:
 
     poll_results = await asyncio.gather(*[_poll_one(w) for w in workers_to_try])
 
-    # First pass: return auth errors immediately (definitive)
+    # First pass: return first found result (takes priority over auth errors)
+    for r in poll_results:
+        if r.get("_status") == "found":
+            return [TextContent(type="text", text=json.dumps({k: v for k, v in r.items() if not k.startswith("_")}))]
+
+    # Second pass: return auth errors if no found result exists (definitive)
     for r in poll_results:
         if r.get("_status") == "auth_error":
             return [
@@ -855,18 +930,130 @@ async def _handle_poll_remote_job(arguments: dict) -> list[TextContent]:
                 )
             ]
 
-    # Second pass: return first found result
-    for r in poll_results:
-        if r.get("_status") == "found":
-            return [TextContent(type="text", text=json.dumps({k: v for k, v in r.items() if not k.startswith("_")}))]
-
     # Collect error messages for the final fallback
-    errors = [r.get("_msg", "not found") for r in poll_results if r.get("_status") == "error"]
+    errors = [r.get("_msg", f"not found on {r['_worker']}") for r in poll_results if r.get("_status") in ("error", "not_found")]
     last_error = "; ".join(errors) if errors else f"Job '{job_id}' not found on any configured worker."
     return [
         TextContent(
             type="text",
             text=json.dumps({"error": last_error}),
+        )
+    ]
+
+
+async def _handle_cancel_remote_job(arguments: dict) -> list[TextContent]:
+    if not _remote_workers:
+        return _no_workers_error("cancel_remote_job")
+
+    job_id = arguments["job_id"]
+    worker_name = arguments.get("worker_name")
+
+    # Build list of workers to try
+    if worker_name:
+        workers_to_try = [w for w in _remote_workers if w["name"] == worker_name]
+        if not workers_to_try:
+            return [
+                TextContent(
+                    type="text",
+                    text=json.dumps(
+                        {
+                            "error": (
+                                f"Unknown worker name: '{worker_name}'. "
+                                f"Configured workers: {[w['name'] for w in _remote_workers]}."
+                            )
+                        }
+                    ),
+                )
+            ]
+    else:
+        workers_to_try = list(_remote_workers)
+
+    conn_timeout = aiohttp.ClientTimeout(total=30)
+
+    not_found_workers: list[str] = []
+    auth_errors: list[str] = []
+    conn_errors: list[str] = []
+
+    for w in workers_to_try:
+        try:
+            async with _get_http_session().delete(
+                f"{w['url'].rstrip('/')}/jobs/{job_id}",
+                headers={"X-API-Key": w.get("api_key", "")},
+                timeout=conn_timeout,
+            ) as resp:
+                if resp.status == 204:
+                    # Success — no response body on 204
+                    return [
+                        TextContent(
+                            type="text",
+                            text=json.dumps(
+                                {"job_id": job_id, "status": "cancelled", "worker_name": w["name"]}
+                            ),
+                        )
+                    ]
+                elif resp.status in (401, 403):
+                    auth_errors.append(
+                        f"Authentication failed for worker '{w['name']}' (HTTP {resp.status}). Check api_key configuration."
+                    )
+                    continue
+                elif resp.status == 404:
+                    not_found_workers.append(w["name"])
+                elif resp.status == 409:
+                    body = await resp.json()
+                    return [
+                        TextContent(
+                            type="text",
+                            text=json.dumps(
+                                {
+                                    "error": body.get("detail", "HTTP 409"),
+                                    "worker_name": w["name"],
+                                }
+                            ),
+                        )
+                    ]
+                else:
+                    body = await resp.json()
+                    return [
+                        TextContent(
+                            type="text",
+                            text=json.dumps(
+                                {
+                                    "error": f"HTTP {resp.status}: {body}",
+                                    "worker_name": w["name"],
+                                }
+                            ),
+                        )
+                    ]
+        except Exception as exc:
+            logger.debug("Failed to cancel job '%s' on worker '%s': %s", job_id, w["name"], exc)
+            conn_errors.append(f"Connection error for worker '{w['name']}': {exc}")
+            continue
+
+    # Return auth errors if any were collected (and no success was found)
+    if auth_errors:
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps({"error": auth_errors[0]}),
+            )
+        ]
+
+    # Return connection errors if any were collected (and no success was found)
+    if conn_errors:
+        return [
+            TextContent(
+                type="text",
+                text=json.dumps({"error": conn_errors[0]}),
+            )
+        ]
+
+    # All workers returned 404
+    return [
+        TextContent(
+            type="text",
+            text=json.dumps(
+                {"error": f"Job '{job_id}' not found on workers: {not_found_workers}"}
+            ),
         )
     ]
 
@@ -922,6 +1109,16 @@ def _load_roles() -> dict[str, dict]:
     return roles
 
 
+def _warn_missing_worker_keys(workers: list[dict], log: logging.Logger) -> None:
+    """Emit a WARNING for each worker in the list that has no api_key configured."""
+    for w in workers:
+        if not w.get("api_key"):
+            log.warning(
+                "Worker '%s' has no api_key configured — remote calls to this worker will fail authentication",
+                w["name"],
+            )
+
+
 async def main():
     # Fix 3: Semaphore creation moved into main() to ensure it runs within
     # an active event loop, avoiding Python <3.10 compatibility issues.
@@ -962,6 +1159,7 @@ async def main():
                     continue
                 valid_workers.append(w)
             _remote_workers = valid_workers
+            _warn_missing_worker_keys(_remote_workers, logger)
         except (json.JSONDecodeError, ValueError) as exc:
             logger.warning(
                 "Failed to parse OUTPOST_REMOTE_WORKERS: %s. Remote dispatch tools will return errors.", exc

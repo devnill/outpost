@@ -1,0 +1,243 @@
+items:
+  '033':
+    title: Fix cancel-while-starting race in _run_claude_job
+    complexity: easy
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - After Popen returns in _run_claude_job, before assigning record.process, the code
+      checks record.status under job_store_lock; if status is already "cancelled", the
+      new process is killed (proc.kill()) and the function returns None
+    - After the check, record.process is assigned and the existing communicate/timeout
+      logic runs unchanged for the normal (non-cancelled) path
+    - At least one test covers the race scenario (cancel arrives while status is running
+      but before process is assigned); the test verifies the process is killed and the
+      job ends with status "cancelled", not still running
+    - All existing remote-worker tests pass
+  '028':
+    title: Fix proc.terminate() race in cancel_job
+    complexity: easy
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - proc.terminate() in cancel_job is wrapped in try/except catching ProcessLookupError
+      (and OSError as the broader catch)
+    - proc.kill() in the SIGKILL fallback path is also wrapped in the same guard
+    - If the process has already exited, the cancel operation returns normally (204)
+      instead of propagating an exception as HTTP 500
+    - At least one test covers the race scenario (process exits before terminate is
+      called); the test verifies no exception is raised
+    - All existing remote-worker tests pass
+  '029':
+    title: Handle FileNotFoundError for missing claude binary
+    complexity: easy
+    scope:
+    - mcp/session-spawner/server.py (modify)
+    - mcp/remote-worker/server.py (modify)
+    - mcp/session-spawner/test_server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - In session-spawner, FileNotFoundError from the claude subprocess call is caught
+      and returns a structured MCP error response with exit_code 1 and error field
+      containing a message such as "claude CLI not found on PATH. Ensure Claude Code
+      is installed and the claude binary is accessible in the server process environment."
+    - In remote-worker, FileNotFoundError from the claude subprocess call in _run_claude_job
+      is caught and marks the job failed with the same actionable message instead of
+      a raw Python exception string
+    - At least one test per server covers the FileNotFoundError path and verifies
+      the error message content is actionable (contains "claude" and "PATH")
+    - No Python tracebacks or raw exception class names appear in the error response
+      for either server
+    - All existing tests pass
+  '030':
+    title: Fix conftest sys.modules key collision between test suites
+    complexity: easy
+    scope:
+    - mcp/session-spawner/conftest.py (modify)
+    - mcp/remote-worker/conftest.py (modify)
+    - mcp/session-spawner/test_server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - mcp/session-spawner/conftest.py registers the session-spawner server module
+      under sys.modules["session_spawner_server"] (not "server")
+    - mcp/remote-worker/conftest.py registers the remote-worker server module under
+      sys.modules["remote_worker_server"] (not "server")
+    - All import references to the old "server" key within each test file are updated
+      to use the new module name
+    - Running pytest from the repository root (pytest mcp/) completes without import
+      errors or incorrect module resolution
+    - All 121 tests pass when run from the repository root
+  '031':
+    title: Add --cwd flag to _run_claude_job and max_jobs to list_remote_workers output
+    complexity: easy
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    - mcp/session-spawner/server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    - mcp/session-spawner/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - In _run_claude_job, the command list passed to subprocess.Popen includes "--cwd"
+      followed by record.working_dir, positioned after "--max-turns" and before any
+      other optional flags
+    - The false docstring claim "Uses the same subprocess pattern as session-spawner"
+      is removed or corrected to accurately describe the invocation
+    - In _fetch_worker_health, the returned dict includes "max_jobs" field sourced
+      from data.get("max_jobs") from the worker health response
+    - At least one test verifies that --cwd appears in the command passed to Popen
+      in a remote-worker job
+    - At least one test verifies that list_remote_workers output includes max_jobs
+      from the health response
+    - All existing tests pass
+  '032':
+    title: Documentation sweep (cycle 7 minor gaps)
+    complexity: easy
+    scope:
+    - README.md (modify)
+    - CLAUDE.md (modify)
+    - specs/plan/architecture.md (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - README.md Usage section tool list includes cancel_remote_job as the fifth tool
+    - README.md Configuration section includes a cross-reference to mcp/session-spawner/README.md
+      and mcp/remote-worker/README.md for complete environment variable documentation,
+      or lists the key security and observability variables (at minimum OUTPOST_SAFE_ROOT
+      and OUTPOST_LOG_FILE)
+    - CLAUDE.md Installation section references mcp/session-spawner/requirements.txt
+      instead of the non-existent requirements.txt at the repository root
+    - specs/plan/architecture.md Section 8 environment variable table includes a row
+      for IDEATE_WORKER_MAX_JOBS with component (remote-worker), default (1000), and
+      description (max jobs retained in the in-memory store before LRU eviction)
+    - No other content in any of these files is changed beyond the specific items listed
+  '012':
+    title: Fix Installation Paths
+    complexity: easy
+    scope:
+    - .claude-plugin/plugin.json (modify)
+    - README.md (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - .claude-plugin/plugin.json args field points to mcp/session-spawner/server.py
+      (not mcp/server.py)
+    - README.md Installation section pip command references an existing requirements.txt
+      path or is corrected to reference the right component directory
+    - README.md MCP Server Setup section claude mcp add command uses the correct server
+      path (mcp/session-spawner/server.py)
+    - README.md Usage section does not list poll_session as an available tool
+    - All paths in plugin.json and README.md are internally consistent and reference
+      files that exist in the repository
+  '013':
+    title: Fix poll_remote_job Auth-Error Priority
+    complexity: easy
+    scope:
+    - mcp/session-spawner/server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - In _handle_poll_remote_job, the found-result pass executes before the auth-error
+      pass
+    - When one worker returns a found result and another returns a 401, the found
+      result is returned to the caller
+    - When all workers return auth errors and no found result exists, the auth error
+      is still returned
+    - When no worker has the job and no auth errors exist, the not-found fallback
+      error is returned
+    - Existing poll_remote_job tests pass without modification
+  '014':
+    title: Fix poll_remote_job Missing Timestamp Fields
+    complexity: easy
+    scope:
+    - mcp/session-spawner/server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - In _poll_one(), the field copy list includes created_at, started_at, and completed_at
+    - When the remote worker response body contains these fields, they appear in the
+      poll_remote_job result
+    - When the fields are absent from the response body (running job), they are not
+      included (no KeyError)
+    - Existing poll_remote_job tests pass without modification
+  '015':
+    title: Apply Role Constraints to Remote Sessions
+    complexity: medium
+    scope:
+    - mcp/session-spawner/server.py (modify)
+    - mcp/session-spawner/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - In _handle_spawn_remote_session, when role is a string name, it is resolved
+      against _roles dict
+    - Resolved allowed_tools from the role definition is included in the HTTP payload
+      sent to the remote worker, unless the caller explicitly provided allowed_tools
+    - Resolved permission_mode from the role definition is included in the HTTP payload,
+      unless the caller explicitly provided permission_mode
+    - When role is an inline dict (not a string), its fields are used directly (no
+      lookup required)
+    - When role is a string name not found in _roles, an error is returned before
+      the HTTP request is made
+    - When role is not provided, no role resolution occurs and the payload is unchanged
+    - 'At least 3 new tests cover: role name resolves and fields propagate, unknown
+      role name returns error, inline role dict passes through'
+    - All existing spawn_remote_session tests pass
+  '016':
+    title: Update Architecture Document
+    complexity: easy
+    scope:
+    - specs/plan/architecture.md (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - poll_session is removed from the Component Map MCP Servers table and from the
+      Tool Definitions section
+    - spawn_session Tool Definitions output schema matches the actual implementation
+      (output, exit_code, session_id, duration_ms, error, timed_out)
+    - OUTPOST_CONCURRENCY in the Configuration env vars table is corrected to OUTPOST_MAX_CONCURRENCY
+    - spawn_remote_session input parameter worker_url is renamed to worker_name to
+      match the implementation (or the table accurately describes what the implementation
+      accepts)
+    - poll_remote_job input parameter worker_url is corrected to worker_name
+    - 'list_remote_workers status values in the output description include ''ok''
+      if that is what the implementation returns (health endpoint returns status:
+      ''ok'')'
+    - Authentication env var IDEATE_WORKER_API_KEY is correct (matches implementation)
+    - No section references poll_session as an existing tool
+  '017':
+    title: Implement Running Job Cancellation
+    complexity: medium
+    scope:
+    - mcp/remote-worker/server.py (modify)
+    - mcp/remote-worker/test_server.py (modify)
+    depends: []
+    blocks: []
+    criteria:
+    - JobRecord has a process field (type subprocess.Popen | None, default None)
+    - _run_claude_job uses subprocess.Popen + communicate() instead of subprocess.run(),
+      and stores the Popen object on the record before calling communicate()
+    - 'cancel_job endpoint accepts running jobs: when status == ''running'', calls
+      record.process.terminate(), waits up to 2 seconds, then calls record.process.kill()
+      if still alive'
+    - After cancellation of a running job, record.status is set to 'cancelled' and
+      record.completed_at is set
+    - cancel_job continues to return HTTP 409 for completed and failed jobs
+    - cancel_job continues to set status 'cancelled' for queued jobs (existing behavior
+      unchanged)
+    - 'At least 2 new tests cover: cancel a running job returns 204 and sets status
+      to cancelled; cancel a completed job still returns 409'
+    - All existing remote-worker tests pass
+    - The _process_job function handles the case where a job is cancelled mid-run
+      (record.process is set before communicate() is called so the cancel endpoint
+      can signal it)

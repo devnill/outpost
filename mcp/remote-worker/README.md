@@ -47,6 +47,7 @@ The server listens on `0.0.0.0:7432` by default. All requests must include the `
 | `IDEATE_WORKER_HOST` | `0.0.0.0` | Host address to bind to. |
 | `IDEATE_WORKER_PORT` | `7432` | Port to listen on. |
 | `IDEATE_WORKER_MAX_CONCURRENCY` | `3` | Maximum number of jobs executed simultaneously. Additional jobs queue and wait. |
+| `IDEATE_WORKER_MAX_JOBS` | `1000` | Maximum number of jobs to retain in the in-memory store. Terminal jobs are evicted oldest-first when the limit is exceeded. |
 | `IDEATE_WORKER_BASE_DIR` | *(unset)* | When set, restricts `working_dir` in job requests to paths within this directory. Symlinks are resolved before comparison. |
 
 ## API Reference
@@ -71,7 +72,8 @@ Response:
   "version": "0.1.0",
   "active_jobs": 1,
   "queued_jobs": 0,
-  "max_concurrency": 3
+  "max_concurrency": 3,
+  "max_jobs": 1000
 }
 ```
 
@@ -101,13 +103,13 @@ Request body fields:
 |-------|------|----------|---------|-------------|
 | `prompt` | string | yes | — | Prompt sent to `claude --print`. Maximum 100KB. |
 | `working_dir` | string | yes | — | Working directory for the `claude` subprocess. Must exist on the worker machine. |
-| `role` | string | no | `"worker"` | Advisory role label recorded with the job. |
+| `role` | string | no | `"worker"` | Role name as received; resolved by session-spawner before submission. Stored with the job for reference. |
 | `max_turns` | integer | no | `30` | Maximum agentic turns before termination. |
 | `timeout` | integer | no | `600` | Job timeout in seconds. |
 | `permission_mode` | string | no | `"acceptEdits"` | Claude permission mode: `acceptEdits` or `dontAsk`. |
 | `allowed_tools` | string[] | no | — | Tool allowlist passed to `claude --allowedTools`. |
 
-> **Note:** The `role` field is an observability label for remote dispatch. The remote worker daemon does not perform role resolution — tool restrictions, system prompt injection, and permission mode overrides defined in the role are not applied to the remote claude subprocess.
+> **Note:** The `role` field is resolved by the session-spawner before the job is submitted. The resolved `allowed_tools`, `permission_mode`, `max_turns`, and `system_prompt` are propagated as explicit job parameters to the remote worker.
 
 Response (HTTP 201):
 
@@ -211,7 +213,7 @@ Error responses:
 
 ### DELETE /jobs/{job_id}
 
-Cancel a queued job. Only jobs with status `queued` can be cancelled. Running, completed, or failed jobs cannot be cancelled.
+Cancel a queued or running job. Jobs with status `queued` or `running` can be cancelled.
 
 ```bash
 curl -X DELETE -H "X-API-Key: your-secret-key" \
@@ -222,7 +224,7 @@ Response: HTTP 204 No Content on success.
 
 Error responses:
 - `404` — job ID not found
-- `409` — job is not in `queued` status (already running, completed, failed, or cancelled)
+- `409` — job is in a non-cancellable state (already completed, failed, or cancelled)
 
 ---
 
@@ -233,6 +235,7 @@ Jobs progress through these states:
 ```
 queued → running → completed
                  → failed
+                 → cancelled  (via DELETE)
 queued → cancelled  (via DELETE)
 ```
 
