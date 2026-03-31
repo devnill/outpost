@@ -1,0 +1,14 @@
+id: Q-14
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: Operators cannot discover this configuration option from the README.
+source: archive/cycles/005/spec-adherence.md (Minor Deviation), archive/cycles/005/decision-log.md (OQ-015)
+resolution: WI-026 added `IDEATE_WORKER_MAX_JOBS` row to remote-worker README env var table.
+resolved_in: 6
+description: WI-020 added `IDEATE_WORKER_MAX_JOBS` (default 1000) to control job store eviction. The remote-worker README env var table was not updated. Should it be added?
+cycle_created: 1
+cycle_modified: null
+content_hash: e5f4ec5618b66611a3670e16959bb4ff7ab2545885bc2a74e97d6b11f7a7730e
+token_count: 161
+file_path: .ideate/questions/Q-14.yaml

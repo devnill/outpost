@@ -1,0 +1,13 @@
+id: D-03
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: The depth check runs before any subprocess is created. Sessions at max depth receive a structured error, not a warning.
+rationale: Prevents runaway recursion. Client-side enforcement would be bypassable.
+cycle_created: 1
+cycle_modified: null
+content_hash: "8aa576b8fb774cbeac2ba31a264f946f501952169e46611746097c13fac55efb"
+token_count: 104
+file_path: .ideate/decisions/D-03.yaml

@@ -1,0 +1,11 @@
+id: J-007-008
+type: journal_entry
+phase: brrr
+date: "2026-03-21"
+cycle_created: 7
+title: "Cycle 2 — Work item 026: Documentation Sweep"
+content: |
+  Status: complete with rework
+  Rework: 1 significant finding fixed — stale "omitted from response" sentence at README:252 updated to "included with null value".
+content_hash: a9297a28fa1b9cd6c0c192c27e68a1f2e25fcabe53e3e6aa2808ee0d8c648743
+token_count: 81

@@ -1,0 +1,26 @@
+id: F-009-039
+type: finding
+cycle: 9
+reviewer: code-reviewer
+severity: significant
+title: "`patch.dict(os.environ, env_without_key, clear=True)` is not reliable across async context switches in the container-mode API-key test"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:667`
+  - **Issue**: `patch.dict` with `clear=True` replaces `os.environ` for the duration of the `with` block at the thread level. The test body is synchronous inside the `with` block (it constructs an `AsyncClient` and `await`s the POST), but `await` yields control to the event loop, which may run other coroutines or tasks that read `os.environ`. If those coroutines or tasks happen to set or read `ANTHROPIC_API_KEY`, the patched environment may bleed into or out of them unexpectedly. More concretely: `patch.dict` modifies the global `os.environ` dict in-place (it does not replace the dict object, so all threads and coroutines sharing the process see the change). Any concurrently-running coroutine that reads `os.environ.get("ANTHROPIC_API_KEY")` between the `patch.dict` enter and exit will observe the absence of the key, even if it belongs to a different test. In a sequential `pytest-asyncio` run with a single event loop this is acceptable, but if tests are ever parallelised (e.g. `pytest-xdist`) this becomes a cross-test data race.
+  - **Impact**: Test isolation is fragile. If the test suite is later run with worker threads or parallel event loops, this test can produce false positives or pollute other tests' environments. Currently the test passes reliably because `pytest-asyncio` uses a single-threaded event loop per test.
+  - **Suggested fix**: Use `monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)` and `monkeypatch.setenv("IDEATE_WORKER_API_KEY", TEST_API_KEY)` instead of `patch.dict`. The `monkeypatch` fixture is already available in the test signature and restores the environment atomically at teardown, without the `clear=True` nuclear option:
+    ```python
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("IDEATE_WORKER_API_KEY", TEST_API_KEY)
+    monkeypatch.setattr(worker, "_agent_image", "outpost-agent:latest")
+    async with AsyncClient(...) as ac:
+        resp = await ac.post(...)
+    ```
+file_path: cycles/009/findings/F-009-039.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-009
+verdict: Pass
+content_hash: f265d86d53d46d91b5feae22f5e3b214bf3829cd4d627926c874a89745bd601b
+token_count: 611

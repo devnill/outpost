@@ -1,0 +1,11 @@
+id: J-011-005
+type: journal_entry
+phase: execute
+date: "2026-03-22"
+cycle_created: 11
+title: "Work item 049: Tests for containerized job execution"
+content: |
+  Status: complete with rework
+  Rework: 3 minor findings fixed from incremental review. M1: security flag assertions upgraded to adjacency checks (cap_drop_index+1 == "ALL", security_opt_index+1 == "no-new-privileges") instead of free-floating membership checks. M2: _make_mock_proc stdout default changed from "output" to '{"result": "ok"}' (valid JSON consistent with the rest of the test file). M3 (reviewer's M2): sync test isolation confirmed safe — all tests use monkeypatch which restores state; no additional fixture changes needed.
+content_hash: "0b4110939e280050b66d4523f5e02c9d5a2b89df63ac078cd1d251613384969a"
+token_count: 180

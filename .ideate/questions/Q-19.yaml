@@ -1,0 +1,14 @@
+id: Q-19
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: "On multi-tenant machines, the Anthropic API key is readable from the process table during any container job execution. Fix is one line: remove the `={value}` suffix."
+source: archive/cycles/008/code-quality.md (S1), archive/cycles/008/decision-log.md (OQ-029)
+resolution: "`_build_container_cmd` now passes name-only `-e ANTHROPIC_API_KEY`. Docker inherits the value from the host environment."
+resolved_in: 9
+description: "`_build_container_cmd` passes the API key as `-e ANTHROPIC_API_KEY={value}`, baking the secret into the command list visible via `ps aux` or `/proc/<pid>/cmdline`. Should it use `-e ANTHROPIC_API_KEY` (name only, Docker inherits from host env) instead?"
+cycle_created: 1
+cycle_modified: null
+content_hash: "39497c84c72a230438b5534bacdc31d472daa8b0624d785b3f318ab3713ac5e8"
+token_count: 215
+file_path: .ideate/questions/Q-19.yaml

@@ -1,0 +1,12 @@
+id: J-007-045
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: Cycle 3 refinement
+content: |
+  Findings addressed: 0 critical, 4 significant
+  New work items created: WI-039 (Fix job_queue TOCTOU race with put_nowait), WI-040 (Fix _handle_cancel_remote_job connection error masking), WI-041 (Replace FileNotFoundError sentinel with dedicated type), WI-042 (Add subprocess integration test)
+  Work items reset for rework: none
+content_hash: "80614dfd090fd05b1f80a620c63eff263bf5dd1d715ba6bb409b61eb5d5de23a"
+token_count: 116

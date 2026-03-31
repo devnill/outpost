@@ -1,0 +1,19 @@
+id: FI-001-022
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: Bare `except Exception` in `_fetch_worker_health` silently drops error detail
+description: |
+  - **File**: `mcp/session-spawner/server.py:630`
+  - **Issue**: All connection failures collapse to `"unreachable"` with no logging.
+  - **Impact**: Debugging unreachable workers is difficult; malformed JSON responses are indistinguishable from connection failures.
+  - **Suggested fix**: Add `logger.debug(...)` before the return. Fixed in rework.
+file_path: cycles/001/findings/FI-001-022.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-033
+verdict: Pass
+content_hash: a926d4915a67ec65b8d8b69ffa7d52bd6093a6abdee67ddb38004def735ed0f1
+token_count: 171

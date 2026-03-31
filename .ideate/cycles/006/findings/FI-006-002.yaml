@@ -1,0 +1,18 @@
+id: FI-006-002
+type: finding
+cycle: 6
+reviewer: code-reviewer
+severity: minor
+title: Both subdirectory conftests register under the same `sys.modules` key
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/conftest.py:20` and `/Users/dan/code/outpost/mcp/session-spawner/conftest.py:20`
+  - **Issue**: Both files register their loaded module as `sys.modules["server"]`. When `pytest mcp/` collects both subdirectories in a single process, the second conftest to execute overwrites the first's entry. Any test that later does `import server` will get whichever module was registered last.
+  - **Suggested fix**: Use distinct keys — `sys.modules["remote_worker_server"]` and `sys.modules["session_spawner_server"]` — and update the corresponding `import server as ...` lines in each `test_server.py` to match, or use the already-registered keys `"server"` only locally and rely on the `sys.path` insertion rather than the `sys.modules` shortcut.
+file_path: cycles/006/findings/FI-006-002.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-027
+verdict: Pass
+content_hash: c1332bd6e5f004c0ac01a9cfe60a933947910cf15055e2408599e87c2d39b037
+token_count: 281

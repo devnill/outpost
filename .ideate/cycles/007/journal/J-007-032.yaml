@@ -1,0 +1,12 @@
+id: J-007-032
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 2 — Work item 033: Fix cancel-while-starting race in _run_claude_job"
+content: |
+  Status: complete with rework
+  Rework: 2 significant findings fixed — S1: `_process_job` `result is None` branch now conditionally sets `completed_at` when absent (cancel-while-starting path left it null in API responses); M1: test `assert record.completed_at is None` added to confirm `_run_claude_job` leaves it unset. M2: duplicate section number renumbered.
+  40 remote-worker tests pass.
+content_hash: "6191b6badd5c8b501ed49d0aa7cecad96af2a2880abe8b48ac1970a0c89993f6"
+token_count: 145

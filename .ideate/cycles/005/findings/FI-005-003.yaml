@@ -1,0 +1,19 @@
+id: FI-005-003
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: significant
+title: No test exercises exception path during multi-worker fan-out
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/test_server.py:1834`
+  - **Issue**: All six new tests use clean mock responses. No test verifies behavior when worker-1 raises an exception (e.g., `aiohttp.ClientConnectorError`) while worker_name is omitted and worker-2 is available. C1 above is therefore not caught by the test suite.
+  - **Impact**: The defect at C1 is undetected and ships.
+  - **Suggested fix**: Add a test that patches `session.delete` with a `side_effect` that raises on worker-1's URL and returns 204 on worker-2's URL. Assert that the result is a cancelled status from worker-2.
+file_path: cycles/005/findings/FI-005-003.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-019
+verdict: Pass
+content_hash: dcc3f5dd9c5bf63cfd3e7513fa6799ee7c346b78378c8c08619487ee07acfe39
+token_count: 233

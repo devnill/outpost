@@ -1,0 +1,17 @@
+id: F-002-013
+type: finding
+cycle: 2
+reviewer: code-reviewer
+severity: minor
+title: conftest module alias dependency undocumented (carry-forward)
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/conftest.py`, `/Users/dan/code/outpost/mcp/session-spawner/conftest.py`
+  - **Issue**: The conftest alias requirement is implicit. A missing conftest produces `ModuleNotFoundError` rather than a descriptive failure.
+file_path: cycles/002/findings/F-002-013.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-002
+verdict: Fail
+content_hash: a7a1ce22dd7271f7dfaf642a5dcc25a9c0828ddd872706cbdcad8b07839d4b88
+token_count: 147

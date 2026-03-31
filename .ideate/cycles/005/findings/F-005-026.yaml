@@ -1,0 +1,19 @@
+id: F-005-026
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: minor
+title: Integration test `worker_server` fixture does not reset `_evict_terminal_jobs_locked` behavior
+description: |
+  - **File**: `mcp/test_integration.py`
+  - **Issue**: The `worker_server` fixture clears `job_store` and drains the queue but does not reset `worker_mod._max_jobs`. Tests in `test_remote_worker.py` set this to small values (e.g., 2) and reset it in their fixture. If integration tests run after those unit tests in the same process, `_max_jobs` could be stale.
+  - **Impact**: Low — in practice each test file runs in a separate process. Risk is only if someone later combines test files.
+  - **Suggested fix**: Add `worker_mod._max_jobs = 1000` to the `worker_server` fixture teardown.
+file_path: cycles/005/findings/F-005-026.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-005
+verdict: Pass
+content_hash: "960f4870038c811ce9bfae8f712cb3ee30723fee9d1e10748106a1f5b2416d46"
+token_count: 233

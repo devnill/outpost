@@ -1,0 +1,18 @@
+id: F-008-036
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: minor
+title: "`_build_container_cmd` reads module-level `_agent_image`/`_container_*` globals at call time, not at startup"
+description: |
+  - **File**: `mcp/remote-worker/server.py:34-37, 403-415`
+  - **Issue**: `_agent_image`, `_container_runtime`, `_container_memory`, and `_container_cpus` are read from `os.environ` at module import time. If the environment changes after the process starts (uncommon but possible via `os.environ` mutation in tests or dynamic reconfiguration), the values used in `_build_container_cmd` may not reflect the current state. The test fixture works around this by directly setting `worker._agent_image = ""`, which works but couples tests to implementation internals.
+  - **Suggested fix**: This is acceptable for a production server (env vars are fixed at startup). The test coupling is the practical concern — it is already handled correctly by the fixture. No code change is required, but document in a comment that these are intentionally snapshot-at-import-time.
+file_path: cycles/008/findings/F-008-036.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-008
+verdict: Fail
+content_hash: "306a7b25588bf6a5447ccfeb7e77e47c2511ff8c9083a9e03044829122f348a4"
+token_count: 306

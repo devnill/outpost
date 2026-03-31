@@ -1,0 +1,27 @@
+id: F-001-001
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: "`_run_claude_job` mutates shared `JobRecord` fields outside the lock"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:380-384`
+  - **Issue**: The `FileNotFoundError` handler writes `record.status`, `record.exit_code`, `record.error`, and `record.completed_at` directly without holding `job_store_lock`. These same fields are read and written by `cancel_job` (lines 267–282) and `get_job` (lines 228–256) under the lock. The `record` object is shared mutable state; writes from a thread (via `asyncio.to_thread`) without the lock are a data race with any concurrent HTTP handler.
+  - **Impact**: Under concurrent load, a cancel or status-poll request can observe a partially-updated record — for example, `status == "failed"` but `exit_code` still `None` — producing incorrect API responses or assertion failures in callers.
+  - **Suggested fix**: Move the mutation out of `_run_claude_job` and into the caller `_process_job`, which already holds the lock in its `result is None` branch. Make `_run_claude_job` return `(None, 1, "claude CLI not found...")` as a normal tuple so that `_process_job` can apply it under the lock:
+    ```python
+    # In _run_claude_job, replace the FileNotFoundError handler:
+    except FileNotFoundError:
+        return None, 1, "claude CLI not found on PATH. ..."
+    # In _process_job, the existing result-is-None branch becomes:
+    # output, exit_code, error = result  — and normal lock-protected assignment follows.
+    ```
+    The `return None` cancel-while-starting guard at line 391 must be kept distinct (it intentionally skips all further record updates).
+file_path: cycles/001/findings/F-001-001.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-001
+verdict: Fail
+content_hash: b33bb02b528e0e6f59698a9e3f6ab83636722552fdd33991e0982097ccfb4b54
+token_count: 467

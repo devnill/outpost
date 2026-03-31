@@ -1,0 +1,14 @@
+id: Q-15
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: Architecture documentation of the health response is incomplete.
+source: archive/cycles/005/spec-adherence.md (Minor Deviation), archive/cycles/005/decision-log.md (OQ-016)
+resolution: WI-026 added `max_jobs` field to architecture.md health endpoint schema.
+resolved_in: 6
+description: WI-020 added `max_jobs` to the health endpoint response. The architecture.md health endpoint spec was not updated. Should it be added?
+cycle_created: 1
+cycle_modified: null
+content_hash: "36636059d516ac38b617eac491aec7ddbeda4ad02f6b67e187cc40ee1d17c0e8"
+token_count: 152
+file_path: .ideate/questions/Q-15.yaml

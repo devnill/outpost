@@ -1,0 +1,14 @@
+id: Q-09
+type: domain_question
+domain: session-lifecycle
+status: open
+impact: Running local sessions become orphaned when MCP server terminates.
+source: Gap analysis MI5 (archive/cycles/003/gap-analysis.md)
+resolution: null
+resolved_in: null
+description: Should the MCP server track and terminate spawned processes on shutdown?
+cycle_created: 1
+cycle_modified: null
+content_hash: "072ae11b71bb38be5d6e8b066e50c8a3f156ba45c16c2c9532d935df9a18a186"
+token_count: 108
+file_path: .ideate/questions/Q-09.yaml

@@ -1,0 +1,12 @@
+id: J-002-014
+type: journal_entry
+phase: brrr
+date: "2026-03-16"
+cycle_created: 2
+title: "Cycle 1 — Work item 012: Fix Installation Paths"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed — pytest --cov=mcp changed to --cov=mcp/session-spawner (mcp/ has no __init__.py).
+  Incremental review S1 false positive: reviewer incorrectly flagged spawn_remote_session, poll_remote_job, list_remote_workers as unimplemented; all three are registered in mcp/session-spawner/server.py.
+content_hash: "3300e7d157d21827e82c1896e41564d8157187c84827c7475f88c7826ef3910b"
+token_count: 127

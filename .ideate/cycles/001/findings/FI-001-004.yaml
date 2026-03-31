@@ -1,0 +1,18 @@
+id: FI-001-004
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: working_dir accepted without validation
+description: |
+  - **File**: `mcp/remote-worker/server.py:38`
+  - **Issue**: Any caller with valid key can direct claude to any path.
+  - **Resolution**: Fixed. `working_dir` validated to exist; if `IDEATE_WORKER_BASE_DIR` set, path must be within it.
+file_path: cycles/001/findings/FI-001-004.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-030
+verdict: Pass
+content_hash: "1d58983c809735a9fc68fc553f47d26e8e75fde9a69cb5fc009df866bf61fdf0"
+token_count: 133

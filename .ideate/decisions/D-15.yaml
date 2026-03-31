@@ -1,0 +1,13 @@
+id: D-15
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: Fix `plugin.json` args path; fix README `pip install` and `claude mcp add` commands.
+rationale: Paths were stale from project restructuring; mechanical fixes required for correct MCP registration.
+cycle_created: 1
+cycle_modified: null
+content_hash: "4fd15370bb65d280b3974caf1fb6ca670ce07cbeffe25ba7ad4cc325afcc99b5"
+token_count: 103
+file_path: .ideate/decisions/D-15.yaml

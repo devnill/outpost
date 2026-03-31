@@ -1,0 +1,14 @@
+id: Q-16
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: The architecture env var table is secondary documentation (README is primary), but completeness is expected. Operators consulting the architecture reference will not find this env var.
+source: archive/cycles/006/gap-analysis.md (MG1), archive/cycles/006/decision-log.md (OQ-020)
+resolution: WI-032 added `IDEATE_WORKER_MAX_JOBS` to architecture.md Section 8 env var table.
+resolved_in: 8
+description: WI-026 added `IDEATE_WORKER_MAX_JOBS` to the remote-worker README and health schema in architecture.md, but the architecture.md Section 8 configuration env var reference table was not updated. Should the env var be added there as well?
+cycle_created: 1
+cycle_modified: null
+content_hash: a881feadd0efc7d09d3d6960db4e37f469e587c5b222d04f284bf8352485d482
+token_count: 206
+file_path: .ideate/questions/Q-16.yaml

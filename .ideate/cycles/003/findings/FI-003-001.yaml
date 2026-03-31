@@ -1,0 +1,18 @@
+id: FI-003-001
+type: finding
+cycle: 3
+reviewer: code-reviewer
+severity: minor
+title: README coverage command references non-existent package path
+description: |
+  - **File**: `/Users/dan/code/outpost/README.md:77`
+  - **Issue**: `pytest --cov=mcp` assumes a Python package named `mcp` at the root. `mcp/__init__.py` does not exist; the server lives under `mcp/session-spawner/`.
+  - **Suggested fix**: Change to `pytest --cov=mcp/session-spawner`
+file_path: cycles/003/findings/FI-003-001.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-012
+verdict: Pass
+content_hash: "162deb438bdb07e2418c694f889ca2a056e1da9f02d0420a4ec3d9a8293c56cc"
+token_count: 149

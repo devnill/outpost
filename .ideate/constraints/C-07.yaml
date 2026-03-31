@@ -1,0 +1,10 @@
+id: C-07
+type: constraint
+category: design
+status: active
+description: Output Size Limits. Large outputs are truncated. The default limit (50KB) prevents overwhelming the parent session's context. Users can increase the limit but cannot disable truncation entirely.
+cycle_created: 1
+cycle_modified: null
+content_hash: "83524969f8cd30733513328d4d1f3bacf1f48a107e87a850f3c2810edab9e863"
+token_count: 91
+file_path: .ideate/constraints/C-07.yaml

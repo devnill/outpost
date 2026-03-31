@@ -1,0 +1,14 @@
+id: Q-25
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: Jobs cancelled during Popen initialization count against store capacity without triggering compaction. Minor under normal conditions; accumulates under high cancel-while-starting volume.
+source: archive/cycles/008/code-quality.md (M1), archive/cycles/008/gap-analysis.md (IG1), archive/cycles/008/decision-log.md (OQ-035)
+resolution: WI-051 added the missing `_evict_terminal_jobs_locked()` call in the cancel-while-starting path.
+resolved_in: 9
+description: Should `_process_job` call `_evict_terminal_jobs_locked()` in the `result is None` (cancel-while-starting sentinel) branch, consistent with all other terminal-state paths?
+cycle_created: 1
+cycle_modified: null
+content_hash: dd2f8d5e9241d777476914a7fd59f0d81048751e9ddbee5e413cb2ebabf18981
+token_count: 204
+file_path: .ideate/questions/Q-25.yaml

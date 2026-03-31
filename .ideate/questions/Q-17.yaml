@@ -1,0 +1,14 @@
+id: Q-17
+type: domain_question
+domain: remote-dispatch
+status: open
+impact: "Callers using `list_remote_workers` cannot see the job store capacity of each worker, making capacity planning opaque. One-line fix at `mcp/session-spawner/server.py:684`."
+source: archive/cycles/007/spec-adherence.md (D1/MD1), archive/cycles/007/decision-log.md (OQ-022)
+resolution: null
+resolved_in: null
+description: "`_fetch_worker_health` in session-spawner does not forward the `max_jobs` field from the remote-worker `/health` response, despite the field being specified in architecture.md section 3 and available in the worker response. Should `max_jobs` be added to the forwarded fields?"
+cycle_created: 1
+cycle_modified: null
+content_hash: "562ababfcd677d8487e930ae6d689acd3d3b31f920f50cca387246c59d382ad7"
+token_count: 194
+file_path: .ideate/questions/Q-17.yaml

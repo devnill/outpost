@@ -1,0 +1,13 @@
+id: J-006-001
+type: journal_entry
+phase: refine
+date: "2026-03-21"
+cycle_created: 6
+title: Refinement planning completed
+content: |
+  Trigger: Cycle 7 capstone review — 0 critical, 0 significant findings; long-deferred minor fixes
+  Principles changed: none
+  New work items: 028–032
+  Addresses proc.terminate() race (OQ-011), FileNotFoundError handling (OQ-024), conftest key collision (OQ-021), --cwd flag + max_jobs forwarding (OQ-022, OQ-023), documentation sweep (OQ-020, OQ-026, OQ-027, OQ-028). OQ-025 explicitly deferred to next refinement cycle.
+content_hash: "416b74adb8e5c4413f5b4548048cbe31ecf725aa105e49c502ba83b5710c661b"
+token_count: 141

@@ -1,0 +1,18 @@
+id: FI-001-036
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: ps aux grep pattern unreliable
+description: |
+  - **File**: `agents/manager.md:53`
+  - **Issue**: `ps aux | grep claude` matches grep itself and cannot distinguish sessions.
+  - **Resolution**: Fixed. Replaced with `pgrep -f "claude.*--session-id $SESSION_ID"` with ps fallback.
+file_path: cycles/001/findings/FI-001-036.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-035
+verdict: Pass
+content_hash: "6e47164e13869a406969b6daa17fdfb278a16e5658f14209c85414257a6cf8e0"
+token_count: 129

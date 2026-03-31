@@ -1,0 +1,11 @@
+id: J-002-009
+type: journal_entry
+phase: brrr
+date: "2026-03-16"
+cycle_created: 2
+title: "Cycle 1 — Work item 015: Apply Role Constraints to Remote Sessions"
+content: |
+  Status: complete
+  Rework: none. All 65 session-spawner tests pass. Role resolution at dispatch time, resolved allowed_tools and permission_mode propagated to HTTP payload, 3 new tests added.
+content_hash: "04f196a967fdc25bfafea9c8eaeeaeefcc26ba864fe40b209695e1717a6d93f3"
+token_count: 93

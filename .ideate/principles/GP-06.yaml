@@ -1,0 +1,11 @@
+id: GP-06
+type: guiding_principle
+name: Protocol Compliance
+status: active
+description: The MCP server implementation follows the Model Context Protocol specification precisely. Tool schemas, error handling, and async semantics match what Claude Code expects. Deviations from protocol are bugs.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: "4dfc37d2f3ee750167fdf3bd5163877c0678bca65f3ce8fe48430b341efa3b70"
+token_count: 104
+file_path: .ideate/principles/GP-06.yaml

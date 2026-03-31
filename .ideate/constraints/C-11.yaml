@@ -1,0 +1,10 @@
+id: C-11
+type: constraint
+category: process
+status: active
+description: Concurrent Session Limit. A semaphore limits concurrent local sessions (default 5). This prevents resource exhaustion. Remote workers have their own concurrency limits configured independently.
+cycle_created: 1
+cycle_modified: null
+content_hash: "1ff0a69c8eaeed3f1ce75edf06d934eac9c48f0408b02f9effa7f3e0620bcd01"
+token_count: 91
+file_path: .ideate/constraints/C-11.yaml

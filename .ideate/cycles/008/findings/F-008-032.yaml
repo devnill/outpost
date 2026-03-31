@@ -1,0 +1,23 @@
+id: F-008-032
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: significant
+title: ANTHROPIC_API_KEY embedded in command list, visible in process table
+description: |
+  - **File**: `mcp/remote-worker/server.py:415`
+  - **Issue**: The API key is passed as `"-e", f"ANTHROPIC_API_KEY={os.environ.get('ANTHROPIC_API_KEY', '')}"` — the value is baked into the command list as a single string element `ANTHROPIC_API_KEY=<secret>`. On Linux/macOS, any user with access to `ps aux` or `/proc/<pid>/cmdline` can read the full `docker run` command line, including the key value.
+  - **Impact**: Any local user on the remote-worker host can extract the Anthropic API key from the process table while a container job is running. On a multi-tenant machine this is a full key compromise.
+  - **Suggested fix**: Pass the key via `--env-file` (write a temp file readable only by the server process user) or pass the key name only and rely on the key already being present in the server environment that Docker inherits: `"-e", "ANTHROPIC_API_KEY"` (without a value). When the value is omitted, Docker inherits the variable from the host process environment without embedding it in the command line. Replace line 415 with:
+    ```python
+    "-e", "ANTHROPIC_API_KEY",
+    ```
+    This works because the remote-worker process itself already has `ANTHROPIC_API_KEY` in its environment; `docker run -e VAR` without a value passes the host value through without exposing it in `cmdline`.
+file_path: cycles/008/findings/F-008-032.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-008
+verdict: Fail
+content_hash: "7e3753bc53cf5d47278a3d4f896739aa7f0fccb75ff3d7a0bacd0caeb16808b2"
+token_count: 409

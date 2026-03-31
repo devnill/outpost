@@ -1,0 +1,15 @@
+id: FI-001-007
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: Host hardcoded to 0.0.0.0
+description: "- **Resolution**: Fixed. `IDEATE_WORKER_HOST` env var added (default `0.0.0.0`)."
+file_path: cycles/001/findings/FI-001-007.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-030
+verdict: Pass
+content_hash: "47024bfc4ac19837f4962f7e64860438e3b6fca5808c57a155ed79fec4ab7a7a"
+token_count: 90

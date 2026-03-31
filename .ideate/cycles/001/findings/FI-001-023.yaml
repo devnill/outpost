@@ -1,0 +1,19 @@
+id: FI-001-023
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: "`poll_remote_job` treats 401/403 as \"job not found here, try next\""
+description: |
+  - **File**: `mcp/session-spawner/server.py:810`
+  - **Issue**: Auth failure causes the loop to continue, producing a misleading "job not found" error.
+  - **Impact**: Auth misconfiguration is misdiagnosed as a missing job.
+  - **Suggested fix**: Return auth error immediately on 401/403. Fixed in rework.
+file_path: cycles/001/findings/FI-001-023.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-033
+verdict: Pass
+content_hash: "67780f1441b363f709adf6e3c36e6735c6e6bf3ca85dbf96b7dca9fe40f5cac7"
+token_count: 158

@@ -1,0 +1,10 @@
+id: C-02
+type: constraint
+category: technology
+status: active
+description: Claude Code CLI Dependency. Session spawning requires the Claude Code CLI (`claude`) to be installed and available on PATH. There is no fallback. The system cannot spawn sessions without this binary.
+cycle_created: 1
+cycle_modified: null
+content_hash: "805ebbf18826cd3895ff2000ffb6d5a0ab2ce9f086317ba04a65d1cc4244046c"
+token_count: 93
+file_path: .ideate/constraints/C-02.yaml

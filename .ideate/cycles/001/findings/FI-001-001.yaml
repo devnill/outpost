@@ -1,0 +1,20 @@
+id: FI-001-001
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: critical
+title: Timing attack on API key comparison
+description: |
+  - **File**: `mcp/remote-worker/server.py:111`
+  - **Issue**: `provided_key != expected_key` vulnerable to timing attacks.
+  - **Impact**: Network-adjacent attacker can recover API key character-by-character.
+  - **Suggested fix**: Use `hmac.compare_digest`.
+  - **Resolution**: Fixed. Now uses `hmac.compare_digest(provided_key, expected_key)`.
+file_path: cycles/001/findings/FI-001-001.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-030
+verdict: Pass
+content_hash: "963a2663c72db189b8c71311c6224df8519da2cedec9fb5f40ac366eb8a67e7d"
+token_count: 159

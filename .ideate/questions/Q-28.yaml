@@ -1,0 +1,14 @@
+id: Q-28
+type: domain_question
+domain: remote-dispatch
+status: open
+impact: A regression in the HTTP handler (e.g., pre-flight check removed or misplaced) would not be caught by the existing container mode integration test.
+source: archive/cycles/009/gap-analysis.md (MG1), archive/cycles/009/decision-log.md (OQ-038)
+resolution: null
+resolved_in: null
+description: "`test_container_mode_uses_docker_command_in_worker` directly enqueues jobs, bypassing `create_job` and the ANTHROPIC_API_KEY pre-flight check. Should a companion integration test submit a container-mode job via `POST /jobs` to exercise the full HTTP path?"
+cycle_created: 1
+cycle_modified: null
+content_hash: d0ff3909047bbdd8d074c94357be58692bad3758a66c8463e2678d97f42025e2
+token_count: 182
+file_path: .ideate/questions/Q-28.yaml

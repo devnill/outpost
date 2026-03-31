@@ -1,0 +1,14 @@
+id: Q-20
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: A regression in the docker stop call (wrong name format, wrong timeout, suppressed exceptions) is invisible to the test suite.
+source: archive/cycles/008/code-quality.md (S2), archive/cycles/008/decision-log.md (OQ-031)
+resolution: WI-054 added test coverage for the docker stop cancel path.
+resolved_in: 9
+description: "`cancel_job` calls `subprocess.run([\"docker\", \"stop\", container_name])` when `container_name` is set, but no test exercises this path. Should a cancel-path test be added for containerized jobs?"
+cycle_created: 1
+cycle_modified: null
+content_hash: "2c99e86b0497df4002446d4762f0717a3c49404f8c8e21c8fc6d5daac00c01fb"
+token_count: 176
+file_path: .ideate/questions/Q-20.yaml

@@ -1,0 +1,18 @@
+id: P-02
+type: domain_policy
+domain: session-lifecycle
+status: provisional — under review
+derived_from:
+  - GP-2 (Explicit State Management)
+  - GP-11 (Stateless Server)
+established: planning phase
+amended: null
+description: |
+  Session tracking uses filesystem files exclusively. In-memory state is not authoritative and must not be used as the source of truth.
+  
+  > _Conflict identified in cycle 002: the implementation uses an in-memory `_session_registry` with opt-in JSONL logging (no default path), violating this policy. See Q-4 and D-8 for the contradicting finding._
+cycle_created: 1
+cycle_modified: null
+content_hash: "4b6120ce153be90b622f820a6daa35022d61ba2d5198612c13f7f9071b67676e"
+token_count: 168
+file_path: .ideate/policies/P-02.yaml

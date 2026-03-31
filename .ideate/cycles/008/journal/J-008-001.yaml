@@ -1,0 +1,13 @@
+id: J-008-001
+type: journal_entry
+phase: refine
+date: "2026-03-22"
+cycle_created: 8
+title: Refinement planning completed
+content: |
+  Trigger: user request — address all 9 minor open items from cycle 4 brrr session (CF2, CF3, CF5, CF7, NG2, NG3, NC1, NC2, NG4)
+  Principles changed: none
+  New work items: WI-043 through WI-046
+  Four work items covering two small code fixes (NG2: list_jobs timestamp fields; NG4: submit_job store ordering) and seven test coverage gaps across remote-worker, session-spawner, and integration test files. WI-043 and WI-044 share remote-worker/test_server.py and are sequenced; WI-045 and WI-046 are independent.
+content_hash: "9117814a68db944e8ae89d9b3458a3aa70c2a305c635bcba5afd28280494df35"
+token_count: 164

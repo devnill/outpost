@@ -1,0 +1,14 @@
+id: Q-12
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: Architecture document is the definitive reference for job state machine; current description is incomplete.
+source: archive/cycles/004/spec-adherence.md (MA2), archive/cycles/004/decision-log.md (OQ-004)
+resolution: Architecture job-states table corrected by WI-023 to include both transitions.
+resolved_in: 5
+description: "`specs/plan/architecture.md:223` describes `cancelled` as \"Cancelled while queued.\" WI-017 made `cancelled` reachable from both `queued` and `running`. Should the description be corrected to reflect both transitions?"
+cycle_created: 1
+cycle_modified: null
+content_hash: "4b6064aab53548a6925c9cca3bfc547697a30c8a97dca4e0ab951c46c3d93c0d"
+token_count: 182
+file_path: .ideate/questions/Q-12.yaml

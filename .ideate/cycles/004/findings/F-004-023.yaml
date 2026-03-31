@@ -1,0 +1,15 @@
+id: F-004-023
+type: finding
+cycle: 4
+reviewer: code-reviewer
+severity: minor
+title: conftest module alias undocumented (carry-forward)
+description: "- **File**: `/Users/dan/code/outpost/mcp/remote-worker/conftest.py`, `/Users/dan/code/outpost/mcp/session-spawner/conftest.py`"
+file_path: cycles/004/findings/F-004-023.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-004
+verdict: Pass
+content_hash: bfa9d368f79e950b3abcf26c92611fc2bab5bc0245a41c195cf0320d7b073619
+token_count: 108

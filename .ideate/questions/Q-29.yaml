@@ -1,0 +1,14 @@
+id: Q-29
+type: domain_question
+domain: remote-dispatch
+status: open
+impact: Architecture error table is incomplete for container mode error paths.
+source: archive/cycles/009/spec-adherence.md (U8), archive/cycles/009/decision-log.md (OQ-039)
+resolution: null
+resolved_in: null
+description: Architecture Section 7 Remote Worker Errors lists only 400 and 401 cases. The HTTP 500 condition added in WI-051 for missing ANTHROPIC_API_KEY in container mode is not represented.
+cycle_created: 1
+cycle_modified: null
+content_hash: ab41d42873d65a313a2685261ba6cc6dca1ec95f0c38b588e0d6c4e890d5988d
+token_count: 144
+file_path: .ideate/questions/Q-29.yaml

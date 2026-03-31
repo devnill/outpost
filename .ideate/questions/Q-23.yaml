@@ -1,0 +1,14 @@
+id: Q-23
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: Operators who set `OUTPOST_AGENT_IMAGE` without `ANTHROPIC_API_KEY` see opaque auth failures inside containers rather than an immediate configuration error.
+source: archive/cycles/008/code-quality.md (M2), archive/cycles/008/decision-log.md (OQ-030)
+resolution: "`create_job` now validates `ANTHROPIC_API_KEY` presence when container mode is active and returns HTTP 500 if absent."
+resolved_in: 9
+description: Should the server emit an actionable error at job submission time when `OUTPOST_AGENT_IMAGE` is set but `ANTHROPIC_API_KEY` is unset or empty, rather than silently passing an empty key into containers?
+cycle_created: 1
+cycle_modified: null
+content_hash: "1e406b985dafbf4b84ebbcc7d08635d6f3df8949d73f2a377064bc22e6a9f4c3"
+token_count: 199
+file_path: .ideate/questions/Q-23.yaml

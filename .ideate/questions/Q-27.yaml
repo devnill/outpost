@@ -1,0 +1,14 @@
+id: Q-27
+type: domain_question
+domain: remote-dispatch
+status: open
+impact: Callers consulting the API Reference for error-handling code will not find HTTP 500 listed and may treat it as an unexpected server fault rather than a configuration error.
+source: archive/cycles/009/gap-analysis.md (SG2), archive/cycles/009/decision-log.md (OQ-037)
+resolution: null
+resolved_in: null
+description: The remote-worker README API Reference lists 400 and 401 for `POST /jobs` but not 500. The pre-flight check that produces 500 is documented in prose in the Container Mode section but absent from the reference table.
+cycle_created: 1
+cycle_modified: null
+content_hash: be0909dfa62ba7d92d060ba021f71dc9f6ebf6642e88ee4ce03f74e86fbe0753
+token_count: 178
+file_path: .ideate/questions/Q-27.yaml

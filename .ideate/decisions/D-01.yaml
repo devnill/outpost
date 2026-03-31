@@ -1,0 +1,13 @@
+id: D-01
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: All session tracking uses the filesystem. No databases, no in-memory session stores, no external state services.
+rationale: Simplicity and recoverability — a server restart does not lose session state. Matches the single-user, local-tooling deployment model.
+cycle_created: 1
+cycle_modified: null
+content_hash: "33714a4cf4d0fba139ca6a9e69f1e4b1591a05ed80ac96c34c0068bb1568b8b8"
+token_count: 118
+file_path: .ideate/decisions/D-01.yaml

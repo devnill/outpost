@@ -1,0 +1,11 @@
+id: J-009-004
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 9
+title: "Cycle 1 — Work item 046: Add auth to integration test flows (NG3)"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed — AC1 test now passes worker_name to bypass health-check path and directly exercise POST /jobs 401 response branch.
+content_hash: "9a993a630a729aaf9ab3ff77086c4692b4b9ca9444f0ec3b99f7864d71be0cfb"
+token_count: 89

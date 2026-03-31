@@ -1,0 +1,11 @@
+id: J-007-046
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 4 — Work item 039: Fix job_queue TOCTOU race with put_nowait"
+content: |
+  Status: complete
+  No rework required. 42 remote-worker tests pass.
+content_hash: c6cc72e29a7ce3fe36701afddde79436b19eea22701eeefd197d8fb9fde2ac60
+token_count: 62

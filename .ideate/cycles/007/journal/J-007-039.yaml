@@ -1,0 +1,12 @@
+id: J-007-039
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 2 — Work item 034: Fix _run_claude_job FileNotFoundError lock race and communicate() timeout"
+content: |
+  Status: complete with rework
+  Rework: 1 significant finding fixed — FileNotFoundError branch in `_process_job` added `if record.status != "cancelled"` guard to match normal completion path; 1 minor finding fixed — TimeoutExpired fallback changed from `b"", b""` to `"", ""` (consistent with text=True Popen), variables renamed from `stdout_bytes`/`stderr_bytes` to `stdout_data`/`stderr_data`.
+  40 remote-worker tests pass.
+content_hash: ac302d1a38af3d773216a6dc932059f8d74b2678722b3efe58a8d35b8feb00eb
+token_count: 162

@@ -1,0 +1,10 @@
+id: C-17
+type: constraint
+category: scope
+status: active
+description: Single-User Assumption. The remote worker daemon assumes a single trusted user. Multi-tenant isolation is out of scope. For multi-user scenarios, run separate worker instances with separate API keys.
+cycle_created: 1
+cycle_modified: null
+content_hash: "2adebc2cb8060d5191248cf451b2aa10ec33d7561e594511ea7607f305e1824e"
+token_count: 92
+file_path: .ideate/constraints/C-17.yaml

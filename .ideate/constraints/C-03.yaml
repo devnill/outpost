@@ -1,0 +1,10 @@
+id: C-03
+type: constraint
+category: technology
+status: active
+description: Python 3.10+. The implementation uses Python 3.10+ features (type hints, match statements, async context managers). Earlier Python versions are not supported.
+cycle_created: 1
+cycle_modified: null
+content_hash: "40697a53b1fedbd38a6d8589b035fe22cb8bc20abe7ed9038923077f94eec644"
+token_count: 83
+file_path: .ideate/constraints/C-03.yaml

@@ -1,0 +1,13 @@
+id: D-13
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: No fix needed for timeout handling; `subprocess.run()` calls `process.kill()` internally.
+rationale: Verified via CPython source (subprocess.py) that timeout parameter triggers kill.
+cycle_created: 1
+cycle_modified: null
+content_hash: "4d0984787d55b795766ebae287dc94438778d52011194da1a0cf1370c98bd090"
+token_count: 99
+file_path: .ideate/decisions/D-13.yaml

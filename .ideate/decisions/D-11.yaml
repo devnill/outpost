@@ -1,0 +1,13 @@
+id: D-11
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: There is no global `OUTPOST_TIMEOUT` environment variable. Timeout is a per-call parameter with a server-side default. The architecture spec listed `OUTPOST_TIMEOUT` but the implementation chose per-call parameters instead.
+rationale: Documented as intentional deviation during WI-011 verification. Per-call timeout gives callers fine-grained control without a global override.
+cycle_created: 1
+cycle_modified: null
+content_hash: f63933af5038b36275b937d073670844c9ed09a3ef1951fd196a8ae8bcf427be
+token_count: 148
+file_path: .ideate/decisions/D-11.yaml

@@ -1,0 +1,25 @@
+id: F-001-002
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: "`asyncio.to_thread` timeout path calls `proc.communicate()` without a timeout"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:397-398`
+  - **Issue**: After `proc.kill()` is called on a `TimeoutExpired` exception, the code calls `proc.communicate()` with no timeout argument. If the killed process holds open file descriptors or does not exit promptly (e.g., zombie grandchildren), this call can block indefinitely inside the worker thread, consuming a thread from the `to_thread` pool forever and eventually exhausting concurrency.
+  - **Impact**: Under adversarial or buggy subprocess conditions, all worker threads can be permanently blocked, halting job processing.
+  - **Suggested fix**: Pass a short timeout to the second `communicate()` call and handle the resulting `TimeoutExpired`:
+    ```python
+    try:
+        stdout_bytes, stderr_bytes = proc.communicate(timeout=10)
+    except subprocess.TimeoutExpired:
+        stdout_bytes, stderr_bytes = b"", b""
+    ```
+file_path: cycles/001/findings/F-001-002.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-001
+verdict: Fail
+content_hash: "59b203470cda4df8c08fdbbcf4a8c7d83f843a5a70bd2969a07e2efdc533048f"
+token_count: 311

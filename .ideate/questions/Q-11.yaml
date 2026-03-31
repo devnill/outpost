@@ -1,0 +1,14 @@
+id: Q-11
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: Callers reading the README will not attempt to cancel running jobs, or will expect 409 and not retry. Actual behavior is 204 with successful cancellation.
+source: archive/cycles/004/gap-analysis.md (SG1), archive/cycles/004/spec-adherence.md (MA2)
+resolution: README updated by WI-023 to reflect that running jobs can be cancelled.
+resolved_in: 5
+description: "`mcp/remote-worker/README.md` states only queued jobs can be cancelled and running jobs return 409. WI-017 extended cancellation to running jobs. Should the README and job lifecycle diagram be updated to reflect this?"
+cycle_created: 1
+cycle_modified: null
+content_hash: d9769fea343ea0f2c55d39815c459f482bbff879a6a349c2b6bd3f4ffcd6e817
+token_count: 191
+file_path: .ideate/questions/Q-11.yaml

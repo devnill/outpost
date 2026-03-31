@@ -1,0 +1,48 @@
+id: CS-003
+type: cycle_summary
+cycle: 3
+content: |
+  # Review Summary — Outpost Cycle 3 (brrr session)
+  
+  **Date**: 2026-03-22
+  **Cycle**: 3
+  **Work items executed**: WI-037, WI-038
+  
+  ## Work Items
+  
+  | ID | Title | Outcome |
+  |----|-------|---------|
+  | WI-037 | Fix _capture_git_diff subprocess leak on timeout | Pass with rework (M1 ordering assertion fixed) |
+  | WI-038 | Bound job_queue with maxsize and HTTP 429 back-pressure | Pass with rework (S1 lifespan queue init + M1 fixture ordering fixed) |
+  
+  ## Review Verdicts
+  
+  | Reviewer | Verdict | Critical | Significant | Minor |
+  |----------|---------|----------|-------------|-------|
+  | Code quality | Fail | 0 | 2 | 4 |
+  | Spec adherence | Pass | 0 | 0 | 0 |
+  | Gap analysis | — | 0 | 2 | 7 |
+  
+  ## Significant Findings
+  
+  **Code S1**: TOCTOU race between `job_queue.full()` and `job_queue.put()` in `remote-worker/server.py:201-210`. Both checks can pass simultaneously under concurrent load; second caller blocks on `put()` rather than getting 429. Fix: use `put_nowait` + catch `asyncio.QueueFull`.
+  
+  **Code S2**: `_handle_cancel_remote_job` returns immediately on first connection error (`_status == "error"`) instead of only on 409 conflict. A network failure on any non-owning worker masks the true "not found" result.
+  
+  **Gap NG1** (elevated from Minor): `(None, 1, msg)` FileNotFoundError sentinel in `_process_job` is structurally indistinguishable from a legitimate zero-stdout exit-1 claude failure, causing misrouting.
+  
+  **Gap CF1** (elevated from Minor): No integration test exercises the `running → completed` lifecycle with a real subprocess. All subprocess calls are mocked.
+  
+  ## Convergence
+  
+  **Not achieved.** Condition A fails (4 significant findings). Condition B passes (spec-adherence.md Principle Violations = "None.").
+  
+  ## Next Steps
+  
+  Refinement cycle to address:
+  1. Code S1: Replace `await job_queue.put()` with `put_nowait` + `QueueFull` exception
+  2. Code S2: Fix `_handle_cancel_remote_job` to not return on connection errors in the second pass
+  3. Gap NG1: Replace `(None, 1, msg)` tuple with a dedicated `_FileNotFoundSentinel` or `_ErrorResult` namedtuple
+  4. Gap CF1: Add an integration test that drives a job to completion using a real subprocess (e.g., `echo` command)
+content_hash: "10c7a7588d4e6f9013b458587522fd2725b6cf8f61e498c7de92dcbe6a99dd3e"
+token_count: 572

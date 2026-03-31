@@ -1,0 +1,11 @@
+id: J-007-009
+type: journal_entry
+phase: brrr
+date: "2026-03-21"
+cycle_created: 7
+title: "Cycle 2 — Work item 025: Fix Integration Tests to Exercise MCP Tool Layer"
+content: |
+  Status: complete
+  No rework needed.
+content_hash: "2410a227ce820ebd71a0ed2da94a2166e4056f51ea0e7166da5803cb3f6ffb34"
+token_count: 56

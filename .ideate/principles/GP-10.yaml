@@ -1,0 +1,11 @@
+id: GP-10
+type: guiding_principle
+name: Result Integrity
+status: active
+description: Job results are captured completely and accurately. Output truncation preserves the most relevant content. Git diffs capture workspace changes. Exit codes and error messages are preserved. The caller receives enough information to understand what happened.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: dc20d12a1d4601cec282058ba4a64125e079304746faf2825d14e03db7cdb8b5
+token_count: 116
+file_path: .ideate/principles/GP-10.yaml

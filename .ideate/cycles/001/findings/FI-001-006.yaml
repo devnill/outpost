@@ -1,0 +1,15 @@
+id: FI-001-006
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: Deprecated @app.on_event("startup")
+description: "- **Resolution**: Fixed. Replaced with `@asynccontextmanager` lifespan pattern."
+file_path: cycles/001/findings/FI-001-006.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-030
+verdict: Pass
+content_hash: "80179e96fc449abd7a16f7b28e83ee9771916d4e294ed5dedea86c2a8fff7eed"
+token_count: 93

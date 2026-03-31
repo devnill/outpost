@@ -1,0 +1,18 @@
+id: FI-001-015
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: No test for cancelling a running job
+description: |
+  - **File**: `mcp/remote-worker/test_server.py`
+  - **Issue**: DELETE /jobs/{job_id} with status `running` should return 409, but only `completed` and `failed` are tested.
+  - **Suggested fix**: Add `test_cancel_running_job_returns_409`. Fixed in rework.
+file_path: cycles/001/findings/FI-001-015.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-031
+verdict: Pass
+content_hash: "6f350a483075be29f6f1b024c2cd826940eac8e8038e421342df5117e81af2f6"
+token_count: 136

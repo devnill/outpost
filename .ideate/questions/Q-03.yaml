@@ -1,0 +1,14 @@
+id: Q-03
+type: domain_question
+domain: session-lifecycle
+status: resolved — 2026-03-16
+impact: Callers following the architecture contract receive `McpError -32601` when calling `poll_session`. True parallel local dispatch (spawn N then poll each) is impossible with the current synchronous design. Resolution determines cycle 3 scope.
+source: archive/cycles/002/summary.md (OQ-004), archive/cycles/002/decision-log.md (D-006, D-010)
+resolution: Accept synchronous as the final design. Architecture updated to remove `poll_session` and document `spawn_session` as a blocking call. Addressed by D-12.
+resolved_in: null
+description: The architecture defines an async spawn+poll model where `spawn_session` returns immediately and `poll_session` retrieves results. The implementation is synchronous — `spawn_session` blocks until completion and `poll_session` does not exist. Should the async model be implemented, or should the architecture be updated to document synchronous as the final design?
+cycle_created: 1
+cycle_modified: null
+content_hash: a43a6601c4c4f2ed3d3e5e223a32a6d0ef76e377cbb88bf505cc484de6ef24c0
+token_count: 275
+file_path: .ideate/questions/Q-03.yaml

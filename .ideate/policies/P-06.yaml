@@ -1,0 +1,14 @@
+id: P-06
+type: domain_policy
+domain: session-lifecycle
+status: active
+derived_from:
+  - GP-11 (Stateless Server)
+established: planning phase
+amended: null
+description: All session state lives in the OS process table and filesystem. The session-spawner server can restart without orphaning jobs that were running before the restart.
+cycle_created: 1
+cycle_modified: null
+content_hash: eabc42791d3204b6a9e41d90cc911fe8c6dfd6e35c87ac1a807b118a0d38d915
+token_count: 108
+file_path: .ideate/policies/P-06.yaml

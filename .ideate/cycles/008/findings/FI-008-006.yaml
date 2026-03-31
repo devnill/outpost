@@ -1,0 +1,24 @@
+id: FI-008-006
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: minor
+title: AC2 assertion does not verify adjacency of `--cap-drop` / `ALL`
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:1364-1367`
+  - **Issue**: The test asserts `"ALL" in cmd` as a free-floating membership check. It does not verify that `"ALL"` is the token immediately following `"--cap-drop"`. If the command were refactored so that `ALL` was passed differently (e.g., `--cap-drop=ALL` as a single token, or the order changed), the assertion would produce a false negative or false positive. The existing tests for `--security-opt` / `no-new-privileges` have the same gap: `"no-new-privileges" in cmd` does not assert it follows `"--security-opt"`.
+  - **Suggested fix**: Mirror the adjacency pattern used by the bind-mount test and the permission-mode test. For example:
+    ```python
+    cap_drop_index = cmd.index("--cap-drop")
+    assert cmd[cap_drop_index + 1] == "ALL"
+    security_opt_index = cmd.index("--security-opt")
+    assert cmd[security_opt_index + 1] == "no-new-privileges"
+    ```
+file_path: cycles/008/findings/FI-008-006.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-049
+verdict: null
+content_hash: "25d633fa0ddcb2e5ca684892d743593e10eaa2cfc6781c0af95ee11620bcafd3"
+token_count: 320

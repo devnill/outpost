@@ -1,0 +1,93 @@
+id: interviews/legacy
+type: interview
+cycle: null
+source_path: steering/interview.md
+entries:
+  - {id: IQ-legacy-001, question: Should the daemon itself be containerized, or just the jobs it runs?, answer: Daemon on host is acceptable for the initial implementation. Containerizing the daemon is a deployment concern — iterate on it later., domain: null, seq: 1}
+  - {id: IQ-legacy-002, question: When a job runs in a container with a bind-mounted workspace, should writes persist back to a host directory, or is the workspace disposable?, answer: No strong opinion. Security and modularity are the only drivers. Don't want malicious or defective prompts to damage the machine running the agent., domain: null, seq: 2}
+  - {id: IQ-legacy-003, question: Should this cycle add the multi-tool driver abstraction and opencode as the first alternative backend?, answer: No — defer. Investigate Claude Code alternatives before committing to a design. This cycle is Docker sandboxing only., domain: null, seq: 3}
+  - {id: IQ-legacy-004, question: Are you here to address the cycle 7 findings, to make other changes, or both?, answer: Address cycle 7 findings — all of Category 1 (code fixes) and Category 2 (documentation). OQ-025 deferred., domain: null, seq: 4}
+  - {id: IQ-legacy-005, question: Do the guiding principles still hold as-is?, answer: Yes, unchanged for now., domain: null, seq: 5}
+  - {id: IQ-legacy-006, question: For FileNotFoundError handling — the session-spawner should return a structured MCP error response, and the remote-worker should mark the job failed with an actionable message. Does that match your intent?, answer: Yes, good proposal., domain: null, seq: 6}
+  - {id: IQ-legacy-007, question: For the undocumented spawn_session additions in architecture (max_depth, output_format, team_name, exec_instructions, OUTPOST_LOG_FILE, OUTPOST_ROLES_FILE) — brief table-only update, full description, or defer?, answer: "Defer — come back to this in the next refinement cycle.
+
+## Session 1 — 2026-03-11
+
+### Q: What is outpost?
+
+**A:** Outpost is an MCP server for Claude Code that provides orchestration infrastructure for delegating work to separate Claude Code instances. It enables two dispatch modes: local session spawning (subprocess) and remote dispatch (HTTP API to worker daemons). The project was extracted from ideate as a separate concern.
+
+### Q: Why was outpost extracted from ideate?
+
+**A:** Ideate's core purpose is SDLC workflow (planning, execution, review). Session orchestration and remote dispatch are infrastructure concerns that have their own design decisions, constraints, and evolution path. Separating them allows ideate to remain focused on SDLC while outpost can specialize in MCP orchestration patterns.
+
+### Q: What problem does outpost solve?
+
+**A:** Claude Code does not support subagents spawning their own subagents. Outpost fills this gap by providing MCP tools that allow a parent Claude Code session to spawn child sessions for parallel work execution. It also enables remote dispatch to worker daemons running on other machines, which is useful for GPU-intensive work or distributed processing.
+
+### Q: Who is the primary user of outpost?
+
+**A:** Developers and teams using Claude Code for large projects that benefit from parallel execution. Users who need to dispatch work to multiple machines. Users running autonomous execution loops (brrr skill) that need worker management and job monitoring.
+
+### Q: What are the core components?
+
+**A:**
+- **session-spawner**: MCP server for local session spawning via `claude --print`
+- **remote-worker**: FastAPI HTTP service that accepts jobs and runs them locally
+- **roles system**: JSON-based role definitions for constraining session capabilities
+- **manager agent**: Claude Code agent that monitors worker status and produces reports
+
+### Q: What are the key design decisions?
+
+**A:**
+1. **Filesystem state**: All session tracking uses files, not in-memory state
+2. **Depth limiting**: Recursive spawning is bounded to prevent runaway recursion
+3. **Timeout enforcement**: Every session has a timeout; hung sessions are killed
+4. **Role-based permissions**: Sessions can be assigned roles that limit tool access
+5. **Output truncation**: Large outputs are truncated to prevent context overflow
+6. **Graceful degradation**: Worker failures don't crash the orchestrator
+
+### Q: What are the security considerations?
+
+**A:**
+- Remote workers require API key authentication
+- Safe root enforcement can restrict session file access to a directory tree
+- Sessions inherit the parent's permissions by default but can be constrained via roles
+- No anonymous access to remote workers
+
+### Q: What is out of scope?
+
+**A:**
+- Multi-tenant isolation (run separate worker instances instead)
+- Persistent job queues (use external orchestration)
+- Work execution (outpost orchestrates; it does not do the work)
+- Web UI or dashboard (observability via manager agent reports)
+
+### Q: How should outpost evolve?
+
+**A:**
+Potential future directions:
+- Session result caching for faster re-dispatch
+- Priority queue support for job scheduling
+- Worker pool auto-scaling based on queue depth
+- WebSocket transport as an alternative to HTTP
+- Integration with cloud provider APIs for worker provisioning
+
+These are not currently planned; they represent potential directions based on user feedback.", domain: null, seq: 7}
+  - {id: IQ-legacy-008, question: Is this new work or cleanup?, answer: Cleanup. The last job failed. We should read the steering documents and fix the artifact structure., domain: null, seq: 8}
+  - {id: IQ-legacy-009, question: For work item 010 — the session spawner already exists and is tested. Should it be removed (already done in ideate) or should we re-run it?, answer: "We should verify that it was implemented correctly.
+
+**Resolution**: Retired work item 010 (stale, implemented in ideate). Created work item 011: verify the session spawner implementation against its original acceptance criteria. Guiding principles, constraints, and architecture unchanged.", domain: null, seq: 9}
+  - {id: IQ-legacy-010, question: Running job cancellation — should cycle 3 implement DELETE /jobs/{id} for running jobs by sending SIGTERM to the subprocess?, answer: Yes, support cancellation., domain: null, seq: 10}
+  - {id: IQ-legacy-011, question: Are there any other areas the user wants to preserve as-is or explicitly exclude from this cycle?, answer: Scope is the 5 findings-driven items plus cancellation. No architecture redesign. No new features beyond what the cycle 2 review identified., domain: null, seq: 11}
+  - {id: IQ-legacy-012, question: "OQ-001 — Role system_prompt for remote sessions: Option A (session-spawner prepends system_prompt to prompt before dispatch) or Option B (pass system_prompt as separate field, remote-worker prepends)?", answer: Option A. Session-spawner resolves system_prompt from the role definition and prepends it to the prompt string before sending the HTTP payload to the remote worker. Consistent with how spawn_session handles it locally., domain: null, seq: 12}
+  - {id: IQ-legacy-013, question: OQ-002 — Should cancel_remote_job be added as an MCP tool to session-spawner?, answer: Yes, add the cancel_remote_job tool., domain: null, seq: 13}
+  - {id: IQ-legacy-014, question: OQ-007 — LRU eviction for job store in remote-worker?, answer: Yes, implement LRU eviction with configurable IDEATE_WORKER_MAX_JOBS env var (default 1000)., domain: null, seq: 14}
+  - {id: IQ-legacy-015, question: OQ-008 — Integration tests between session-spawner and remote-worker?, answer: Yes, worth it. Add integration tests., domain: null, seq: 15}
+  - {id: IQ-legacy-016, question: Minor findings — address all documentation fixes (architecture.md, remote-worker README, session-spawner README), startup validation warnings, and token_usage null consistency?, answer: Yes, do all minor fixes., domain: null, seq: 16}
+  - {id: IQ-legacy-017, question: Are you addressing all 9 minor open items from the cycle 4 brrr session?, answer: Yes, all 9., domain: null, seq: 17}
+  - {id: IQ-legacy-018, question: Do the guiding principles still apply, or do any need to change?, answer: All principles unchanged., domain: null, seq: 18}
+  - {id: IQ-legacy-019, question: Do the guiding principles still apply, or do any need to change?, answer: (Confirmed unchanged — all findings are bug fixes and documentation gaps within existing architecture.), domain: null, seq: 19}
+  - {id: IQ-legacy-020, question: The review found 4 significant findings (S1, S2, DG1, DG2), one architect observation (AO1 — blocking docker stop on async loop), and two minor findings (M1 — missing eviction call, M2 — no API key pre-flight). Address all now, defer any, or dismiss any?, answer: Let's do them all., domain: null, seq: 20}
+content_hash: f17d9d5e9d0798917acbb6cd18f7a5d7cb6cbc48a900f85f3eaad10e0c7d99e8
+token_count: 2244

@@ -1,0 +1,13 @@
+id: D-30
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: "`_build_container_cmd` passes `\"-e\", \"ANTHROPIC_API_KEY\"` (name-only, no `={value}`). Docker inherits the variable from the host process environment without embedding the secret in the command line."
+rationale: The original form `f"ANTHROPIC_API_KEY={value}"` embedded the key in the process command list, visible via `ps aux` and `/proc/<pid>/cmdline`. Name-only form avoids process-table exposure.
+cycle_created: 1
+cycle_modified: null
+content_hash: "8bf98dda3371bbfb117e5eb74be5b9be4202a019ce89309ed51359e9c219f6c9"
+token_count: 154
+file_path: .ideate/decisions/D-30.yaml

@@ -1,0 +1,18 @@
+id: F-009-042
+type: finding
+cycle: 9
+reviewer: spec-reviewer
+severity: minor
+title: remote-worker README security flags list omits `--memory`/`--memory-swap` and `--cpus`
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/README.md:78-83`
+  - **Issue**: The "Security flags applied to each container" bullet list enumerates five items — `--cap-drop ALL`, `--security-opt no-new-privileges`, `--user 1000:1000`, `--pids-limit 512`, `--rm` — omitting `--memory`/`--memory-swap` and `--cpus`. Architecture §9 security properties table includes all seven measures. The two omitted flags are described in the env var table above (lines 55–56) but are absent from the security flags bullet list.
+  - **Suggested fix**: Add two bullets to the security flags list: `--memory / --memory-swap {OUTPOST_CONTAINER_MEMORY}` and `--cpus {OUTPOST_CONTAINER_CPUS}`.
+file_path: cycles/009/findings/F-009-042.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-009
+verdict: Pass
+content_hash: be6ac3bea7147ec959a5a0a42767d2ec244a4730022862194e098eee427742ce
+token_count: 256

@@ -1,0 +1,13 @@
+id: D-20
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: Add `_evict_terminal_jobs_locked()` to remote-worker, called under `job_store_lock` after each job reaches terminal state. Eviction count capped at `min(needed, len(terminal))`. Controlled by `IDEATE_WORKER_MAX_JOBS` env var (default 1000). `max_jobs` added to health response.
+rationale: Completed and failed jobs accumulated in `job_store` indefinitely, each holding full output. Long-running daemons would exhaust heap memory without bound. LRU eviction of terminal jobs prevents unbounded growth.
+cycle_created: 1
+cycle_modified: null
+content_hash: "11b8f51a9ccff95e94008a189146bdc2ffbe1de8fd759c44c7120e199b43f14f"
+token_count: 178
+file_path: .ideate/decisions/D-20.yaml

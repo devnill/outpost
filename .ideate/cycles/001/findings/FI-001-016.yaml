@@ -1,0 +1,18 @@
+id: FI-001-016
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: No multi-byte UTF-8 boundary test
+description: |
+  - **File**: `mcp/remote-worker/test_server.py`
+  - **Issue**: Prompt size limit is validated against byte length, but tests only use single-byte ASCII. A prompt with multi-byte characters could be under `MAX_PROMPT_BYTES` characters but over the byte limit.
+  - **Suggested fix**: Add test using 3-byte characters (e.g., `€`) at and just over the byte boundary. Fixed in rework.
+file_path: cycles/001/findings/FI-001-016.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-031
+verdict: Pass
+content_hash: "5181b047e632a8251ddf4dcd6fa36a25eed1556934d33bdcd705b7a9c1724695"
+token_count: 166

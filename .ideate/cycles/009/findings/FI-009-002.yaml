@@ -1,0 +1,18 @@
+id: FI-009-002
+type: finding
+cycle: 9
+reviewer: code-reviewer
+severity: minor
+title: Existing prerequisite bullet reworded without authorization
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/README.md:10`
+  - **Issue**: The pre-existing bullet `` - `claude` CLI installed and available on PATH `` was changed to `` - `claude` CLI installed and available on PATH (required in direct mode) ``. Criterion 4 requires that no other content in the file be changed. The addition of "(required in direct mode)" is a textual change to pre-existing content.
+  - **Suggested fix**: Revert line 10 to its original text: `` - `claude` CLI installed and available on PATH ``
+file_path: cycles/009/findings/FI-009-002.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-052
+verdict: Pass
+content_hash: c7b7ac0b49994c5e8d93f066e80de98b1217a49d701d55c126457935a720ff0b
+token_count: 210

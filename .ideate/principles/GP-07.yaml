@@ -1,0 +1,11 @@
+id: GP-07
+type: guiding_principle
+name: Resource Bounds
+status: active
+description: Concurrency limits, timeouts, and output truncation protect the system from runaway resource consumption. Defaults are conservative. User configuration can adjust limits, but unlimited is never the default.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: ec07e04e170fd893a019071240d06280aacf566b78856194a2e5f00f3ab7cc7f
+token_count: 103
+file_path: .ideate/principles/GP-07.yaml

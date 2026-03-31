@@ -1,0 +1,11 @@
+id: J-011-004
+type: journal_entry
+phase: execute
+date: "2026-03-22"
+cycle_created: 11
+title: "Work item 050: Update architecture documentation for container sandboxing"
+content: |
+  Status: complete with rework
+  Rework: 2 significant findings fixed. S1: OUTPOST_AGENT_IMAGE and OUTPOST_CONTAINER_RUNTIME defaults shown as None in Section 8; corrected to "" to match os.environ.get(..., "") implementation. S2: Section 9 used wrong CLI flag name "--dangerously-skip-permissions"; corrected to "--permission-mode dangerouslySkipPermissions".
+content_hash: "1f014e9fc270246b1371796965517ca206f24d63521943eaeb444b83b3cb4b68"
+token_count: 140

@@ -1,0 +1,97 @@
+id: DL-009
+type: decision_log
+cycle: 9
+content: |
+  # Decision Log — Cycle 9
+  
+  **Produced**: 2026-03-22
+  **Scope**: Cycle review — WI-051 through WI-055 (security, async correctness, documentation, and test coverage for container mode).
+  **Work Items Completed**: 5 (WI-051, WI-052, WI-053, WI-054, WI-055). All passed after rework.
+  **Prior state entering this cycle**: Cycle 8 fail — 2 significant findings (S1: API key in process table, S2: no docker stop test) plus 5 minor/doc gaps.
+  **Final Verdict**: Pass (after capstone rework) — 0 critical, 0 significant findings remaining.
+  
+  ---
+  
+  ## Decisions Made
+  
+  ### D-034: ANTHROPIC_API_KEY passed name-only to docker run
+  - **What**: `_build_container_cmd` passes `"-e", "ANTHROPIC_API_KEY"` (name-only, no `={value}`). Docker inherits the variable from the host process environment without embedding the secret in the command line.
+  - **Why**: The original form `f"ANTHROPIC_API_KEY={value}"` embedded the key in the process command list, visible via `ps aux` and `/proc/<pid>/cmdline`. Docker's name-only `-e VAR` form avoids this.
+  - **Source**: OQ-029 (cycle 8), WI-051 Change 1
+  - **Status**: settled — OQ-029 resolved
+  
+  ### D-035: HTTP 500 pre-flight check for missing ANTHROPIC_API_KEY in container mode
+  - **What**: `create_job` validates `ANTHROPIC_API_KEY` is present in the worker environment before creating a job record when `_agent_image` is set. Returns HTTP 500 with actionable detail message if absent.
+  - **Why**: Without the check, jobs submitted with container mode active but no API key would fail silently inside the container with no useful error visible to the caller. HTTP 500 (server misconfiguration) not 400 (bad request) because the key is the operator's responsibility, not the client's.
+  - **Source**: OQ-030 (cycle 8), WI-051 Change 2
+  - **Status**: settled — OQ-030 resolved
+  
+  ### D-036: asyncio.to_thread wrapping for docker stop in cancel_job
+  - **What**: `cancel_job` wraps `subprocess.run(["docker", "stop", ...])` in `await asyncio.to_thread(...)` to avoid blocking the async event loop for up to 15 seconds.
+  - **Why**: `cancel_job` is `async def`. Calling `subprocess.run` directly would block the event loop during the docker stop timeout window, preventing other requests from being handled.
+  - **Source**: AO1 finding (cycle 8 gap analysis architect observation), WI-051 Change 3
+  - **Status**: settled
+  
+  ### D-037: proc.terminate() gated on not container_name after docker stop
+  - **What**: `cancel_job`'s `proc.terminate()` block is now gated on `not container_name`. In container mode, `docker stop` already caused `docker run` to exit; calling `proc.terminate()` on an already-exited process was redundant.
+  - **Why**: `docker stop` sends SIGTERM then SIGKILL to the container's main process, which causes `docker run` (the host process) to exit. The subsequent `proc.terminate()` unconditionally fired on the already-exited process on every container cancel, always hitting the `ProcessLookupError` exception path. Structurally wrong even if not harmful.
+  - **Source**: C1 from cycle 9 capstone code review
+  - **Status**: settled
+  
+  ### D-038: Log message for FileNotFoundError branches on container mode
+  - **What**: The `_FILE_NOT_FOUND` sentinel log message now reads `"Job %s failed (docker not found) in %dms"` when `_agent_image` is set, vs `"Job %s failed (claude not found) in %dms"` otherwise.
+  - **Why**: Operators tailing logs in container mode were seeing "claude not found" when the real issue was a missing docker binary, which directs investigation to the wrong binary.
+  - **Source**: S1 from cycle 9 capstone code review
+  - **Status**: settled
+  
+  ---
+  
+  ## Open Questions
+  
+  ### OQ-036: No test for FileNotFoundError when docker binary is absent in container mode
+  - **Context**: `_run_claude_job` has a separate FileNotFoundError branch for container mode that produces "docker not found on PATH..." error text. The existing `test_run_claude_job_file_not_found_marks_job_failed` test runs with `_agent_image = ""` and only asserts `"claude" in data["error"]`, missing the docker-not-found path entirely.
+  - **Impact if unresolved**: A regression that produces the wrong error message or wrong status when docker is missing in container mode would not be caught.
+  - **Source**: SG1 from cycle 9 gap analysis
+  
+  ### OQ-037: `POST /jobs` API reference table does not list HTTP 500
+  - **Context**: `mcp/remote-worker/README.md` API Reference lists 400 and 401 for `POST /jobs` but not 500. The pre-flight check that produces 500 is documented in prose in the Container Mode section but absent from the reference table.
+  - **Impact if unresolved**: Callers consulting the API Reference will not know to handle HTTP 500 as a configuration error.
+  - **Source**: SG2 from cycle 9 gap analysis
+  
+  ### OQ-038: Container mode integration test bypasses the HTTP layer
+  - **Context**: `test_container_mode_uses_docker_command_in_worker` directly enqueues jobs, bypassing `create_job` and the ANTHROPIC_API_KEY pre-flight check. A regression in the HTTP handler would not be caught.
+  - **Impact if unresolved**: Moderate coverage gap. The pre-flight check has a unit test (`test_create_job_container_mode_missing_api_key_returns_500`) but no end-to-end integration test exercising the full HTTP → queue → worker → result path for container mode.
+  - **Source**: MG1 from cycle 9 gap analysis
+  
+  ### OQ-039: Architecture §7 error table omits HTTP 500 ANTHROPIC_API_KEY pre-flight condition
+  - **Context**: Architecture §7 Remote Worker Errors lists only 400 and 401 cases. The HTTP 500 condition added in WI-051 is not represented.
+  - **Impact if unresolved**: Architecture document is incomplete for container mode error paths.
+  - **Source**: U8 from cycle 9 spec-adherence review
+  
+  ---
+  
+  ## Cross-Cycle Patterns
+  
+  ### Security-correctness lag pattern (cycles 8→9)
+  Cycle 8 introduced container sandboxing but shipped with ANTHROPIC_API_KEY embedded in the process command line (OQ-029). This is consistent with the pattern observed in cycles 4-5 where implementation work items are completed correctly but security-sensitive details are not reviewed until the capstone review. Resolution required a dedicated fix cycle (cycle 9) rather than an incremental catch.
+  
+  ### Documentation-follows-implementation (cycles 4, 5, 7, 8, 9)
+  Each cycle that adds features ships documentation gaps that require a follow-up cycle. Cycle 9 closes the cycle 8 documentation gaps (DG1, DG2) but opens new minor documentation gaps (OQ-037, OQ-039). The pattern continues.
+  
+  ---
+  
+  ## Carried-Forward Items
+  
+  | Item | First Identified | Description | Location |
+  |------|-----------------|-------------|----------|
+  | U1 | Cycle 7 | `max_depth` input absent from architecture §3 spawn_session spec | mcp/session-spawner/server.py |
+  | U2 | Cycle 7 | `output_format` input absent from architecture §3 | mcp/session-spawner/server.py |
+  | U3 | Cycle 7 | `team_name` input absent from architecture §3 | mcp/session-spawner/server.py |
+  | U4 | Cycle 7 | `exec_instructions` input absent from architecture §3 | mcp/session-spawner/server.py |
+  | U5 | Cycle 7 | `OUTPOST_LOG_FILE` absent from architecture §8 | mcp/session-spawner/server.py |
+  | U6 | Cycle 7 | `OUTPOST_ROLES_FILE` absent from architecture §5 and §8 | mcp/session-spawner/server.py |
+  | U7 | Cycle 8 | `ANTHROPIC_API_KEY` passthrough mechanism not described in architecture §9 | mcp/remote-worker/server.py |
+  
+  OQ-029 through OQ-035 (from cycle 8) all resolved in cycle 9.
+content_hash: aacbe84163a5fe9e8b3e476dbe41d59f1e55cb19ab00ecbcaa79faa45a0be848
+token_count: 1890

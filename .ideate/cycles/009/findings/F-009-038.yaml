@@ -1,0 +1,27 @@
+id: F-009-038
+type: finding
+cycle: 9
+reviewer: code-reviewer
+severity: significant
+title: Log message hard-codes "claude not found" for the docker-missing case
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:536`
+  - **Issue**: The log line at line 536 reads `"Job %s failed (claude not found) in %dms"` for every `_FILE_NOT_FOUND` result, including the container-mode case where the actual error is "docker not found on PATH". The error text stored in `record.error` is correct (differentiates docker vs claude), but the log message always says "claude not found".
+  - **Impact**: Operators tailing logs in container mode will see "claude not found" when the real cause is a missing `docker` binary. This makes incident diagnosis slower and may send operators chasing the wrong binary.
+  - **Suggested fix**: Change line 536 to use the `error` variable already in scope:
+    ```python
+    logger.info("Job %s failed (binary not found: %s) in %dms", record.job_id, error, duration_ms)
+    ```
+    Or at minimum detect container mode:
+    ```python
+    label = "docker not found" if worker_mod._agent_image else "claude not found"
+    logger.info("Job %s failed (%s) in %dms", record.job_id, label, duration_ms)
+    ```
+file_path: cycles/009/findings/F-009-038.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-009
+verdict: Pass
+content_hash: "38929fca50e095849267c77dba84e9d937425dabeabbbd0635c3e66927a28bb8"
+token_count: 354

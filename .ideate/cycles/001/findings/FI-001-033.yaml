@@ -1,0 +1,18 @@
+id: FI-001-033
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: list_remote_workers MCP tool invocation absent
+description: |
+  - **File**: `agents/manager.md` Responsibility 1
+  - **Issue**: AC 4a requires checking worker status via `list_remote_workers` MCP tool. Implementation used curl only.
+  - **Resolution**: Fixed. Added `list_remote_workers` as preferred method; curl as fallback.
+file_path: cycles/001/findings/FI-001-033.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-035
+verdict: Pass
+content_hash: ce2f6594b2903e3363d5954b8c99e3bd2790b70ef54f374f6aa20c8756b6f0b7
+token_count: 142

@@ -1,0 +1,19 @@
+id: F-008-033
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: significant
+title: No test for `docker stop` invocation on cancel of running containerized job
+description: |
+  - **File**: `mcp/remote-worker/test_server.py` (no such test)
+  - **Issue**: `cancel_job` calls `subprocess.run(["docker", "stop", container_name], ...)` when `container_name` is set (server.py:308-316). There is no test that sets `record.container_name` and verifies that `docker stop` is called with the correct container name (`job-{job_id}`). The six new container-mode tests (WI-049) cover `_build_container_cmd` and `_run_claude_job`, but none exercise the cancel path.
+  - **Impact**: A regression in the `docker stop` call (wrong name format, wrong timeout, suppressed exceptions) will go undetected by the test suite.
+  - **Suggested fix**: Add an async test that sets `record.status = "running"` and `record.container_name = f"job-{job_id}"`, patches `subprocess.run`, calls `DELETE /jobs/{job_id}`, and asserts `subprocess.run` was called with `["docker", "stop", f"job-{job_id}"]`.
+file_path: cycles/008/findings/F-008-033.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-008
+verdict: Fail
+content_hash: c233836ef52bcf4ab234008afe95dac5e15b77b92d1c40846747c5c91c075c28
+token_count: 311

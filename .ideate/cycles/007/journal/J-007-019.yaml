@@ -1,0 +1,11 @@
+id: J-007-019
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 1 — Work item 028: Fix proc.terminate() race in cancel_job"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed from incremental review. Added clarifying comment to explain why both ProcessLookupError and OSError are listed in the except clause (ProcessLookupError is a subclass of OSError).
+content_hash: "0237d0083c8cb4e4d5f62fde835391863091360ec3e5e2a84723036726418f2b"
+token_count: 105

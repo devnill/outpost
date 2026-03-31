@@ -1,0 +1,19 @@
+id: FI-001-013
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: "`_execute_job` duplicates execution logic from `_worker`"
+description: |
+  - **File**: `mcp/remote-worker/test_server.py:49-82`
+  - **Issue**: `_execute_job` replicates the `asyncio.to_thread`, timing, git_diff capture, and status-update logic from `_worker`, creating a maintenance hazard. Changes to execution logic in `server.py` will not automatically be reflected in tests.
+  - **Impact**: Tests may pass while the production execution path has bugs.
+  - **Suggested fix**: Extract the execution body from `_worker` into a testable `_process_job` coroutine in `server.py`; have `_execute_job` call `worker._process_job`. Fixed in rework.
+file_path: cycles/001/findings/FI-001-013.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-031
+verdict: Pass
+content_hash: c5e95cb91e9765c7805324d1519c61780760610465ab823d9df0f167b6d31b4d
+token_count: 221

@@ -1,0 +1,14 @@
+id: Q-26
+type: domain_question
+domain: remote-dispatch
+status: open
+impact: A regression in the container-mode FileNotFoundError branch (wrong error message, wrong status) would not be caught by the test suite.
+source: archive/cycles/009/gap-analysis.md (SG1), archive/cycles/009/decision-log.md (OQ-036)
+resolution: null
+resolved_in: null
+description: The existing `FileNotFoundError` test runs with `_agent_image = ""` and only asserts `"claude" in data["error"]`. No test sets `_agent_image` to a non-empty value to exercise the container-mode branch that produces "docker not found on PATH..." error text.
+cycle_created: 1
+cycle_modified: null
+content_hash: "396abec2463cfc484aaaca25da75863ac35d5aba58322ae8edfc1666c77da315"
+token_count: 181
+file_path: .ideate/questions/Q-26.yaml

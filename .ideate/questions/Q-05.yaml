@@ -1,0 +1,14 @@
+id: Q-05
+type: domain_question
+domain: session-lifecycle
+status: resolved — 2026-03-16
+impact: If not killed, constraint C12 is violated in both components and orphaned `claude` processes accumulate. If killed, no fix is needed. Must be resolved before cycle 3 work items are scoped.
+source: archive/cycles/002/summary.md (OQ-002), archive/cycles/002/spec-adherence.md (P2), archive/cycles/002/gap-analysis.md (SC1, SC2)
+resolution: Verified via CPython source (subprocess.py line 46 calls `process.kill()` internally before re-raising TimeoutExpired). C12 is satisfied. No fix required. Addressed by D-13.
+resolved_in: null
+description: The code-quality reviewer states `subprocess.run()` kills the child internally on `TimeoutExpired`. The spec-adherence reviewer and gap analyst state it does NOT (citing Python documentation that the caller must explicitly kill). These are opposite conclusions about the same code path. Which is correct?
+cycle_created: 1
+cycle_modified: null
+content_hash: "1d085efad8761ab904e7363700d8c49df62fd068faeec37de117f5734a8b8652"
+token_count: 262
+file_path: .ideate/questions/Q-05.yaml

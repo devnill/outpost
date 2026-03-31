@@ -1,0 +1,27 @@
+id: F-002-010
+type: finding
+cycle: 2
+reviewer: code-reviewer
+severity: significant
+title: "`_capture_git_diff` leaks subprocess on timeout"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:342-347`
+  - **Issue**: When `proc.communicate(timeout=30)` raises `subprocess.TimeoutExpired`, the exception is caught and `None` is returned without calling `proc.kill()` or `proc.wait()`. The git subprocess continues running with its stdout/stderr pipes open. Under load (many jobs completing on large repos), this accumulates orphan processes and exhausts pipe buffer capacity.
+  - **Impact**: Gradual resource leak: orphaned `git diff HEAD` processes accumulate per job completion. On systems where git is slow (large repos, NFS mounts), this is triggered regularly and can exhaust process table entries or file descriptors.
+  - **Suggested fix**:
+    ```python
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.communicate()  # drain pipes and reap
+        return None
+    except (FileNotFoundError, OSError):
+        return None
+    ```
+file_path: cycles/002/findings/F-002-010.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-002
+verdict: Fail
+content_hash: "20d70442c6d76f145929ea7c55a00105c857f23dde2ac43340a4d85423f6734c"
+token_count: 307

@@ -1,0 +1,13 @@
+id: D-24
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: Each remote-worker job runs in an ephemeral Docker container (`--rm`) when `OUTPOST_AGENT_IMAGE` is set. Container is named `job-{job_id}` for cancel coordination. Host working directory is bind-mounted to `/workspace`. Container boundary replaces interactive permission checks; `--permission-mode dangerouslySkipPermissions` is always used inside container.
+rationale: Security and modularity requirements for running unattended Claude Code with `--dangerously-skip-permissions`. Container isolation provides a hard boundary that replaces interactive permission prompts.
+cycle_created: 1
+cycle_modified: null
+content_hash: "5a4281712456e46e84b987427b5f36ffd326f81a0e61baff4c61aea4bed7ed4a"
+token_count: 196
+file_path: .ideate/decisions/D-24.yaml

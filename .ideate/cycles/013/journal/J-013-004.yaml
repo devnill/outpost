@@ -1,0 +1,12 @@
+id: J-013-004
+type: journal_entry
+phase: execute
+date: "2026-03-22"
+cycle_created: 13
+title: "Work item 053: Add container sandboxing section to root README"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed from incremental review. Made Dockerfile reference explicit in the docker build command comment (`# uses mcp/remote-worker/Dockerfile`).
+  New Remote Worker Deployment / Container Sandboxing section inserted between ## Configuration and ## Architecture.
+content_hash: "97898dd456aba806909fb0b242f13bdf1e7a27b727a1cc9843967a8459bde391"
+token_count: 124

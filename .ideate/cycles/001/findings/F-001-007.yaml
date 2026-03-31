@@ -1,0 +1,18 @@
+id: F-001-007
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: "`spawn_remote_session` role resolution does not validate `working_dir` before making HTTP calls"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:712-757`
+  - **Issue**: `_handle_spawn_remote_session` does not validate that `working_dir` exists before making health check HTTP requests to select a worker and submitting the job. The `working_dir` validation is delegated to the remote worker's `/jobs` endpoint (which returns HTTP 400). The caller receives a generic `"Remote worker returned HTTP 400"` error rather than a clear client-side message. Compare with `spawn_session` which validates `working_dir` locally before any subprocess call.
+  - **Suggested fix**: Add a `Path(arguments["working_dir"]).is_dir()` check at the start of `_handle_spawn_remote_session` and return a structured error matching the format used by `spawn_session` before making any HTTP calls.
+file_path: cycles/001/findings/F-001-007.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-001
+verdict: Fail
+content_hash: bdb3271b43b1ca448264e8e4500699d138773b32373a3d5935ae01cb981d66ba
+token_count: 287

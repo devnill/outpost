@@ -1,0 +1,15 @@
+id: F-004-022
+type: finding
+cycle: 4
+reviewer: code-reviewer
+severity: minor
+title: "`_semaphore` at module scope (carry-forward)"
+description: "- **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:1229`"
+file_path: cycles/004/findings/F-004-022.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-004
+verdict: Pass
+content_hash: a89db41f1047a6e1b9a749115301bba08f17d0a667fa0e710048ba8a04952d4e
+token_count: 93

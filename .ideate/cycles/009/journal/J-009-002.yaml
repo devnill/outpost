@@ -1,0 +1,12 @@
+id: J-009-002
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 9
+title: "Cycle 1 — Work item 043: Fix list_jobs missing timestamp fields and submit_job store ordering"
+content: |
+  Status: complete with rework
+  Rework: 2 minor findings fixed from incremental review.
+  M1: Added `assert len(worker.job_store) == 0` rollback assertion in test_create_job_queue_full_returns_429. M2: Renumbered duplicate section 20 to 21 in test_server.py.
+content_hash: aeb3b292ecab43c1dbff2d30c8cb583560f2c1980f8e59248a24e44d4298a8a8
+token_count: 116

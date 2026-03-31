@@ -1,0 +1,140 @@
+id: DL-003
+type: decision_log
+cycle: 3
+content: |
+  # Decision Log and Open Questions — Cycle 003
+  
+  **Cycle Date**: 2026-03-16
+  **Trigger**: Cycle 2 comprehensive review (6 critical, 4 significant findings)
+  **Work Items Completed**: 6 (012-017)
+  **Final Verdict**: Pass (0 critical, 0 significant, 5 minor findings)
+  **Test Count**: 97 (65 session-spawner + 32 remote-worker), all passing
+  
+  ---
+  
+  ## Decision Log
+  
+  ### Phase: Planning (Refinement Interview 2026-03-16)
+  
+  #### D-001: Accept Synchronous spawn_session as Final Design
+  - **When**: Planning — Refinement Interview (2026-03-16)
+  - **Decision**: Accept synchronous `spawn_session` as the final design; do not implement `poll_session`
+  - **Rationale**: Architecture originally defined async spawn+poll model, but implementation went synchronous. User confirmed synchronous is acceptable.
+  - **Alternatives considered**: Implement async model with `poll_session` (rejected)
+  - **Implications**: Architecture document updated to remove `poll_session`; README updated
+  
+  #### D-002: Timeout Subprocess Kill Verification
+  - **When**: Planning — Refinement Interview (2026-03-16)
+  - **Decision**: No fix needed for timeout handling; `subprocess.run()` calls `process.kill()` internally
+  - **Rationale**: Verified via CPython source (subprocess.py)
+  - **Implications**: Constraint C12 (Timeout Is Mandatory) is satisfied
+  
+  #### D-003: Role Resolution for Remote Sessions — Option A
+  - **When**: Planning — Refinement Interview (2026-03-16)
+  - **Decision**: Session-spawner resolves role definition at dispatch time and sends resolved `allowed_tools` and `permission_mode` in HTTP payload
+  - **Rationale**: Option A chosen over Option B — simpler deployment, no need to synchronize role definitions
+  - **Implications**: Role constraints now apply to remote sessions; addressed by WI-015
+  
+  #### D-004: Running Job Cancellation Implementation
+  - **When**: Planning — Refinement Interview (2026-03-16)
+  - **Decision**: Implement running job cancellation via SIGTERM/SIGKILL on Popen handle
+  - **Rationale**: User confirmed support for cancellation is needed
+  - **Implications**: `DELETE /jobs/{id}` now cancels running jobs; addressed by WI-017
+  
+  ---
+  
+  ### Phase: Execution (Cycle 003 Work Items)
+  
+  #### D-005: Installation Path Corrections
+  - **When**: Execution — Work item 012
+  - **Decision**: Fix `plugin.json` args path; fix README `pip install` and `claude mcp add` commands
+  - **Rationale**: Paths were stale from project restructuring
+  - **Implications**: MCP server registration now works correctly
+  
+  #### D-006: poll_remote_job Auth-Error Priority Reversal
+  - **When**: Execution — Work item 013
+  - **Decision**: Reorder poll_remote_job fan-out so found results are returned before auth errors
+  - **Rationale**: Previous behavior violated GP-3 (Graceful Degradation)
+  - **Implications**: Multi-worker resilience improved
+  
+  #### D-007: poll_remote_job Timestamp Field Propagation
+  - **When**: Execution — Work item 014
+  - **Decision**: Extend `_poll_one()` field copy list to include `created_at`, `started_at`, `completed_at`
+  - **Rationale**: Fields were present in worker response but not propagated
+  - **Implications**: Poll responses now include complete job lifecycle timestamps
+  
+  #### D-008: Role Constraints Applied to Remote Sessions
+  - **When**: Execution — Work item 015
+  - **Decision**: Resolve role in `_handle_spawn_remote_session` before building HTTP payload
+  - **Rationale**: Implements D-003 (Option A resolution); satisfies GP-8
+  - **Implications**: Remote sessions now respect role constraints
+  
+  #### D-009: Architecture Document Synchronization
+  - **When**: Execution — Work item 016
+  - **Decision**: Update architecture.md to match implementation
+  - **Rationale**: Document was stale; created confusion
+  - **Implications**: Architecture now accurately reflects implementation
+  
+  #### D-010: Running Job Cancellation via Process Tracking
+  - **When**: Execution — Work item 017
+  - **Decision**: Add `process` field to `JobRecord`; store Popen handle; cancel via SIGTERM/SIGKILL
+  - **Rationale**: Implements D-004
+  - **Implications**: `cancelled` state now reachable from `running`
+  
+  ---
+  
+  ## Open Questions
+  
+  ### OQ-001: Session Registry Filesystem-Backed Storage
+  - **Question**: Should `_session_registry` move to filesystem-backed storage?
+  - **Source**: Domain questions, gap-analysis
+  - **Impact**: Session history lost on restart; registry grows unbounded
+  - **Severity**: Significant
+  
+  ### OQ-002: Job Store Eviction Policy
+  - **Question**: Should `job_store` have an eviction policy?
+  - **Source**: Gap analysis
+  - **Impact**: Completed jobs accumulate; memory exhaustion
+  - **Severity**: Significant
+  
+  ### OQ-003: Worker Selection Strategy
+  - **Question**: Should there be load-balancing logic for worker selection?
+  - **Source**: Domain questions
+  - **Impact**: Uneven load distribution
+  - **Severity**: Minor
+  
+  ### OQ-004: Output Truncation Head vs Tail
+  - **Question**: Does truncation preserve beginning or end of output?
+  - **Source**: Domain questions
+  - **Impact**: Callers may miss actionable content
+  - **Severity**: Minor
+  
+  ### OQ-005: exec_instructions Security Posture
+  - **Question**: Is prompt injection risk via `exec_instructions` documented?
+  - **Source**: Domain questions
+  - **Impact**: Security vulnerability in untrusted contexts
+  - **Severity**: Significant
+  
+  ### OQ-006: Worker Restart Recovery Pattern
+  - **Question**: What is expected recovery when worker restarts?
+  - **Source**: Domain questions
+  - **Impact**: Callers may silently lose work
+  - **Severity**: Significant
+  
+  ### OQ-007: Environment Variable Naming
+  - **Question**: Should `IDEATE_WORKER_*` be standardized to `OUTPOST_*`?
+  - **Source**: Code review
+  - **Impact**: Configuration complexity
+  - **Severity**: Minor
+  
+  ---
+  
+  ## Summary
+  
+  Cycle 003 successfully addressed all 6 critical and 4 significant findings from Cycle 002. All work items passed incremental review. The codebase now has 97 passing tests.
+  
+  **Resolved**: Synchronous design, role resolution Option A, running job cancellation, auth-error priority, timestamp fields
+  
+  **Remaining**: 7 open questions around operational concerns and documentation
+content_hash: "8e46094c74631297ac68db889e27f380382cd8f162d56ec93c6f8faf79fcdb09"
+token_count: 1556

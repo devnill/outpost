@@ -1,0 +1,19 @@
+id: FI-001-002
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: API docs endpoints bypass authentication
+description: |
+  - **File**: `mcp/remote-worker/server.py:99`
+  - **Issue**: `/docs`, `/redoc`, `/openapi.json` explicitly excluded from auth. AC 6 requires all endpoints.
+  - **Impact**: Unauthenticated parties can enumerate full API surface.
+  - **Resolution**: Fixed. Allowlist removed; all requests require valid `X-API-Key`.
+file_path: cycles/001/findings/FI-001-002.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-030
+verdict: Pass
+content_hash: c95c6f557157d576200040e033e4211be0ad9d68ba2c0c161b2815b45f8316f5
+token_count: 153

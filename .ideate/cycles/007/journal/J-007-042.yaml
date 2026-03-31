@@ -1,0 +1,12 @@
+id: J-007-042
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 3 — Work item 037: Fix _capture_git_diff subprocess leak on timeout"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed — test assertion replaced with ordered mock_calls check to verify kill-before-communicate sequence.
+  42 remote-worker tests pass.
+content_hash: b0ce821855018aef63f66cc823b0d7b6b8c0170ae775cc10ef79c83dab19092b
+token_count: 95

@@ -1,0 +1,19 @@
+id: F-005-024
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: minor
+title: Test suite cannot be run as `pytest mcp/` due to duplicate test_server.py basenames
+description: |
+  - **Files**: `mcp/remote-worker/test_server.py`, `mcp/session-spawner/test_server.py`
+  - **Issue**: Both test files share the same basename with no `__init__.py`, causing a pytest import collision when running `pytest mcp/` from the project root. Each suite must be invoked separately (`pytest mcp/remote-worker/test_server.py` and `pytest mcp/session-spawner/test_server.py`). This predates cycle 5 but becomes more noticeable with the addition of `mcp/test_integration.py`.
+  - **Impact**: CI configuration and CLAUDE.md docs (`pytest` from root) don't work as written. Must run three separate pytest commands.
+  - **Suggested fix**: Add empty `__init__.py` files to `mcp/remote-worker/` and `mcp/session-spawner/` to make them packages, or rename test files to `test_remote_worker.py` and `test_session_spawner.py`.
+file_path: cycles/005/findings/F-005-024.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-005
+verdict: Pass
+content_hash: "4543d5ac51e4718941bdc0913591feb68b7bb169651a0fd3c7b9613432bd4f6c"
+token_count: 289

@@ -1,0 +1,11 @@
+id: J-007-013
+type: journal_entry
+phase: brrr
+date: "2026-03-20"
+cycle_created: 7
+title: "Cycle 1 — Work item 021: Integration Tests Between session-spawner and remote-worker"
+content: |
+  Status: complete
+  5 tests pass. No rework needed. 2 minor findings documented.
+content_hash: "95ad1a8a80c7f5f9099edf20c7d33abbe3869ff753b347fb8732c267be9b11c8"
+token_count: 70

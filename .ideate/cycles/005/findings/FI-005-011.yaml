@@ -1,0 +1,18 @@
+id: FI-005-011
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: minor
+title: Implicit assumption that `_load_roles()` is a public function in session_spawner
+description: |
+  - **File**: `mcp/test_integration.py:88`
+  - **Issue**: `spawner_mod._roles = spawner_mod._load_roles()` assumes the spawner exposes a `_load_roles` function. If this function is renamed or inlined, the test breaks silently with an `AttributeError`.
+  - **Impact**: Low — the function is present and the test currently passes. Worth noting as a maintenance risk.
+file_path: cycles/005/findings/FI-005-011.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-021
+verdict: Pass
+content_hash: "9fd4cbd18c7d551e43f91b380ae0d603df609d0ab3a7c0f25921915d93239644"
+token_count: 174

@@ -1,0 +1,15 @@
+id: F-003-019
+type: finding
+cycle: 3
+reviewer: code-reviewer
+severity: minor
+title: conftest module alias dependency undocumented (carry-forward)
+description: "- **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:19`, `/Users/dan/code/outpost/mcp/session-spawner/test_server.py:20`"
+file_path: cycles/003/findings/F-003-019.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-003
+verdict: Fail
+content_hash: ed12fe76ad6389017f26d8da87c71c0dc0babe01d67e5dba84f790c68e5983e4
+token_count: 114

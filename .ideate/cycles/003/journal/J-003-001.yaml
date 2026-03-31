@@ -1,0 +1,13 @@
+id: J-003-001
+type: journal_entry
+phase: refine
+date: "2026-03-16"
+cycle_created: 3
+title: Refinement planning completed
+content: |
+  Trigger: Cycle 2 comprehensive review — 6 critical, 4 significant findings
+  Principles changed: none
+  New work items: 012–017
+  Fixes installation path bugs (012), poll_remote_job auth-error priority (013), missing timestamp fields in poll response (014), applies role constraints to remote sessions via Option A dispatch-time resolution (015), updates architecture document to match implementation (016), implements running job cancellation via SIGTERM/SIGKILL on Popen handle (017).
+content_hash: e8b0592a193cfa07609afa813de0f36ec09f50448486ed1a1fa3ee7d56b97dfe
+token_count: 158

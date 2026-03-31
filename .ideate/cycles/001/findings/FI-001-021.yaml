@@ -1,0 +1,19 @@
+id: FI-001-021
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: critical
+title: "`aiohttp.ClientSession` not closed on abnormal exit"
+description: |
+  - **File**: `mcp/session-spawner/server.py:938`
+  - **Issue**: `_http_session.close()` placed after the `async with stdio_server()` block with no `try/finally`. If `server.run()` raises, `close()` is never called, leaking the TCP connector.
+  - **Impact**: ResourceWarning on restart; may exhaust file descriptors in long-running scenarios.
+  - **Suggested fix**: Wrap in `try/finally`. Fixed in rework.
+file_path: cycles/001/findings/FI-001-021.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-033
+verdict: Pass
+content_hash: b4d8cd10d22e09c8a3c240b0e05c1693ee9fb95bdfa8b6efa294da3deffee223
+token_count: 178

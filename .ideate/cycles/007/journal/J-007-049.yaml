@@ -1,0 +1,12 @@
+id: J-007-049
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 4 — Work item 042: Add subprocess integration test"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed — _fake_run_claude_job now clears record.process in a finally block; 1 spec criterion met — test rewritten to start explicit worker coroutine and submit via put_nowait (spec reviewer flagged direct _process_job call as bypassing worker infrastructure).
+  130 total tests pass (42 remote-worker, 82 session-spawner, 6 integration).
+content_hash: "10bda0fd595e99b42a0b34eb5a3e2abd45ce804ce1d82abb6f830158f50ef89e"
+token_count: 140

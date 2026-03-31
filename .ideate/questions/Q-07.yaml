@@ -1,0 +1,14 @@
+id: Q-07
+type: domain_question
+domain: session-lifecycle
+status: resolved — cycle 4
+impact: Resource inefficiency; connection pooling not utilized for remote worker communication.
+source: Gap analysis EC6 (archive/cycles/003/gap-analysis.md)
+resolution: A shared `aiohttp.ClientSession` is now created in `main()` and reused via `_get_http_session()`. Confirmed resolved in archive/cycles/004/gap-analysis.md (Addressed Gaps, EC6).
+resolved_in: null
+description: Should aiohttp ClientSession be reused across requests instead of creating per-request?
+cycle_created: 1
+cycle_modified: null
+content_hash: e8a0a0ecd69a699e87646e3b8bb4ea8416fe7689c5ef0485c30c74cd8ee6f744
+token_count: 164
+file_path: .ideate/questions/Q-07.yaml

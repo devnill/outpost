@@ -1,0 +1,14 @@
+id: Q-22
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: Container sandboxing (the primary cycle 8 feature) is undiscoverable from the project's primary documentation entry point.
+source: archive/cycles/008/gap-analysis.md (DG2), archive/cycles/008/decision-log.md (OQ-033)
+resolution: WI-053 added container sandboxing section to root README.
+resolved_in: 9
+description: Should `README.md` mention Docker sandboxing as a deployment option, reference the Dockerfile, and name `OUTPOST_AGENT_IMAGE` as the activation variable?
+cycle_created: 1
+cycle_modified: null
+content_hash: baa70951eb17c8c937d9227a8c7f86acdef2922d4456423f212147e62b63bf79
+token_count: 164
+file_path: .ideate/questions/Q-22.yaml

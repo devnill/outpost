@@ -1,0 +1,14 @@
+id: Q-08
+type: domain_question
+domain: session-lifecycle
+status: open
+impact: Inconsistent UX between local and remote dispatch; no way to abort long-running local sessions.
+source: Gap analysis II4 (archive/cycles/003/gap-analysis.md)
+resolution: null
+resolved_in: null
+description: Should local sessions support cancellation like remote jobs?
+cycle_created: 1
+cycle_modified: null
+content_hash: a96fc02e916c9cf6df15a3decf7ed4e251927f86441d3c00546718986677cde2
+token_count: 112
+file_path: .ideate/questions/Q-08.yaml

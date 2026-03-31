@@ -1,0 +1,13 @@
+id: D-07
+type: domain_decision
+domain: session-lifecycle
+status: settled — superseded by D-12
+cycle: 2
+supersedes: null
+description: "`spawn_session` blocks until the subprocess exits and returns the full result in one call. The architecture's async spawn+poll model (with `poll_session` as a separate tool) was not implemented. No documentation acknowledged this deviation prior to cycle 2 review."
+rationale: "Rationale not recorded. The architecture specifies non-blocking spawn returning `{session_id, status: \"running\"}` with `poll_session` for result retrieval, but the implementation went synchronous without explanation."
+cycle_created: 1
+cycle_modified: null
+content_hash: fbc7a68d4cbb68b86181b8f10d2f5d57907c387abeca3a0e63d45680dac6fb74
+token_count: 182
+file_path: .ideate/decisions/D-07.yaml

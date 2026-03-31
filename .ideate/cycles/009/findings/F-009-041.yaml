@@ -1,0 +1,18 @@
+id: F-009-041
+type: finding
+cycle: 9
+reviewer: code-reviewer
+severity: minor
+title: "`test_cancel_running_container_job_calls_docker_stop` uses `/tmp` as `working_dir` without checking it exists"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:1488`
+  - **Issue**: The `JobRecord` is constructed with `working_dir="/tmp"` directly. The `create_job` endpoint validates `working_dir.is_dir()`, but this test bypasses the endpoint and inserts the record directly into `job_store`. On macOS `/tmp` is a symlink to `/private/tmp`, which does exist, but the test silently depends on a platform-specific path rather than using `tmp_path` (which is available in the `monkeypatch` fixture context and is always a real directory).
+  - **Suggested fix**: Declare `tmp_path` in the test signature and use `str(tmp_path)` for `working_dir`, consistent with the pattern used in other tests in the same file.
+file_path: cycles/009/findings/F-009-041.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-009
+verdict: Pass
+content_hash: "905187b873f9b315c1adacf4762af507c03bcc3c7bdfc2e6305e0af19d7304eb"
+token_count: 271

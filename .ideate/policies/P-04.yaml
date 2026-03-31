@@ -1,0 +1,14 @@
+id: P-04
+type: domain_policy
+domain: session-lifecycle
+status: active
+derived_from:
+  - GP-8 (Role-Based Sessions)
+established: planning phase
+amended: cycle 5 — violation note removed. WI-018 (D-18) fixed the system_prompt propagation gap for remote sessions. All role dimensions (allowed_tools, permission_mode, max_turns, system_prompt) are now applied in both local and remote dispatch paths.
+description: The spawning session specifies the role; role constraints are applied before the child session starts. A spawned session cannot self-elevate beyond the role it was assigned.
+cycle_created: 1
+cycle_modified: null
+content_hash: "9a04f4940c77cf9b239224672bb01f58fcc4ab605be3ecffc9564e36c66ac30f"
+token_count: 172
+file_path: .ideate/policies/P-04.yaml

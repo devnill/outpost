@@ -1,0 +1,18 @@
+id: FI-001-032
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: Auth error on GET /health path not tested
+description: |
+  - **File**: `mcp/session-spawner/test_server.py`
+  - **Issue**: `_fetch_worker_health` has distinct 401/403 handling returning `status: "auth_error"`. This path was not exercised by any test.
+  - **Suggested fix**: Add `test_list_remote_workers_auth_error_worker`. Fixed in rework.
+file_path: cycles/001/findings/FI-001-032.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-034
+verdict: Pass
+content_hash: "9ca43b3d1fa73666683042f7a9f4740e1ff84580119dcd2b1a28782e0cdfe78e"
+token_count: 145

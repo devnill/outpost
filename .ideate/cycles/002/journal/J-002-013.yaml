@@ -1,0 +1,11 @@
+id: J-002-013
+type: journal_entry
+phase: brrr
+date: "2026-03-16"
+cycle_created: 2
+title: "Cycle 1 — Work item 013: Fix poll_remote_job Auth-Error Priority"
+content: |
+  Status: complete with rework
+  Rework: 2 significant findings fixed (missing tests for new priority scenarios — added 2 tests); 1 minor finding fixed (fallback error accumulator now includes not_found results). All 60 session-spawner tests pass.
+content_hash: "7e00855c7ece0974ff8ebf48a65cab38f11d382bed1c4380508e8ac540b3b8de"
+token_count: 106

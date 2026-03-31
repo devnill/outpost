@@ -1,0 +1,18 @@
+id: FI-001-031
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: Shared `return_value` mock for two concurrent GET calls in list_remote_workers test
+description: |
+  - **File**: `mcp/session-spawner/test_server.py:930`
+  - **Issue**: Two concurrent `_fetch_worker_health` calls shared a single `return_value` mock object. Both calls used the same `__aenter__`/`__aexit__` AsyncMock, making call-count assertions unreliable.
+  - **Suggested fix**: Use `side_effect` list so each call receives a fresh context manager. Fixed in rework.
+file_path: cycles/001/findings/FI-001-031.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-034
+verdict: Pass
+content_hash: e75f58e6b93ee057caf4c454d0a7cb2569ed0704bae4afba000c4c4990e55f1a
+token_count: 176

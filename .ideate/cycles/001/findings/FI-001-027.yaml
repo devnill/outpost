@@ -1,0 +1,18 @@
+id: FI-001-027
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: "`poll_remote_job` fan-out is serial"
+description: |
+  - **File**: `mcp/session-spawner/server.py:798`
+  - **Issue**: N workers × 30s timeout = worst case N×30s. Should use `asyncio.gather`.
+  - **Suggested fix**: Refactor to concurrent polling. Fixed in rework.
+file_path: cycles/001/findings/FI-001-027.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-033
+verdict: Pass
+content_hash: d11dafebb0f67b4fb07bbe5570c1cc856b1b6dd343f2db369edeefe18ff3df7e
+token_count: 124

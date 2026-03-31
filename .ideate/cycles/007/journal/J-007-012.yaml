@@ -1,0 +1,11 @@
+id: J-007-012
+type: journal_entry
+phase: brrr
+date: "2026-03-20"
+cycle_created: 7
+title: "Cycle 1 — Work item 022: Startup Configuration Validation"
+content: |
+  Status: complete
+  No critical/significant rework. Minor: added integration-style test to verify main() actually calls _warn_missing_worker_keys.
+content_hash: "834c36f91ccf61d38b460e3cbfca1f3f170c243412a2dcdb44e8da2d2d57f4f8"
+token_count: 79

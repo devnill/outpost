@@ -1,0 +1,13 @@
+id: D-27
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: "`except FileNotFoundError` branches on `_agent_image`: container mode returns \"docker not found on PATH...\", bare subprocess mode returns \"claude CLI not found on PATH...\"."
+rationale: Generic error message was misleading in container mode where Docker (not Claude CLI) is the missing binary.
+cycle_created: 1
+cycle_modified: null
+content_hash: b169b0bc5b0f82ad4041d4059082ccc4a75b3dc7e00a5770683cff4dd1af2f6d
+token_count: 127
+file_path: .ideate/decisions/D-27.yaml

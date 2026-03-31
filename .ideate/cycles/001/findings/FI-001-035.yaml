@@ -1,0 +1,18 @@
+id: FI-001-035
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: Timestamp format ambiguity in report heading
+description: |
+  - **File**: `agents/manager.md:224`
+  - **Issue**: Two timestamp formats defined; heading uses bare `{timestamp}` without specifying which.
+  - **Resolution**: Not fixed. The General Rules section at line 224 clearly states the two formats and their contexts. Heading follows body-text format (ISO-8601 with colons). Sufficiently specified.
+file_path: cycles/001/findings/FI-001-035.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-035
+verdict: Pass
+content_hash: c85d25bf11f28f9cc5b7c603f94ddc2364d0dfb7d29940a7dc4e05ab6caf304c
+token_count: 160

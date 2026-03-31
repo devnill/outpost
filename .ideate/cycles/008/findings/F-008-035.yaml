@@ -1,0 +1,18 @@
+id: F-008-035
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: minor
+title: "`-e ANTHROPIC_API_KEY=` passes empty string to container when key is not set in environment"
+description: |
+  - **File**: `mcp/remote-worker/server.py:415`
+  - **Issue**: `os.environ.get('ANTHROPIC_API_KEY', '')` falls back to an empty string if the env var is absent. This means the container starts with `ANTHROPIC_API_KEY=` (empty), and the Claude CLI inside the container will fail with an unhelpful auth error rather than a clear configuration error surfaced at job submission time.
+  - **Suggested fix**: At job submission time (in `create_job`) or in `_build_container_cmd`, check that `ANTHROPIC_API_KEY` is non-empty when `_agent_image` is set and return an actionable error (HTTP 500 with a message like "ANTHROPIC_API_KEY is not set on the worker") before starting the container. This is independent of the S1 fix.
+file_path: cycles/008/findings/F-008-035.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-008
+verdict: Fail
+content_hash: "9089c9278ef0ce3e188269b972c4bcd7b54fba1f1b5bfa74f6cdcb7eececdc49"
+token_count: 266

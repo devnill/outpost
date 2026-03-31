@@ -1,0 +1,22 @@
+id: F-009-040
+type: finding
+cycle: 9
+reviewer: code-reviewer
+severity: minor
+title: "`_run_claude_job` return-type annotation is incorrect after cycle 9 changes"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:440`
+  - **Issue**: The function signature declares `-> tuple[str, int, str | None]` but the function now has three distinct return shapes: `(sentinel_object, str)`, `None`, and `(str, int, str | None)`. The annotation covers only the last case.
+  - **Suggested fix**: Update the annotation to reflect the union:
+    ```python
+    def _run_claude_job(record: JobRecord) -> tuple[str, int, str | None] | tuple[object, str] | None:
+    ```
+    Or introduce a named result type to avoid the opaque `object` sentinel in the annotation.
+file_path: cycles/009/findings/F-009-040.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-009
+verdict: Pass
+content_hash: "1f01559d1475d01f83430ea888a8bf3ea486113fbe83891b3edccc69ead52721"
+token_count: 231

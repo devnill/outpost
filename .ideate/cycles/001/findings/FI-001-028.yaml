@@ -1,0 +1,18 @@
+id: FI-001-028
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: "`IDEATE_REMOTE_WORKERS` entries not validated at startup"
+description: |
+  - **File**: `mcp/session-spawner/server.py:909`
+  - **Issue**: Entry missing `"url"` or `"name"` causes `KeyError` at request time.
+  - **Suggested fix**: Validate at startup with per-entry warning. Fixed in rework.
+file_path: cycles/001/findings/FI-001-028.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-033
+verdict: Pass
+content_hash: c94c2091ed12a4ae102337861dc3f5f6b6868f049e7e94a0c292903475f5ef59
+token_count: 132

@@ -1,0 +1,19 @@
+id: F-001-003
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: "`_session_registry` grows without bound"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:572`
+  - **Issue**: Every call to `spawn_session` appends an entry to the module-level `_session_registry` list. There is no eviction, size cap, or flush mechanism. In a long-running server processing thousands of sessions, this list consumes unbounded memory.
+  - **Impact**: Steady-state memory growth leading to OOM in long-running deployments. Also violates guiding principle 11 (Stateless Server) and principle 7 (Resource Bounds).
+  - **Suggested fix**: Cap the registry at a fixed size (e.g., the last 1,000 entries) using a `collections.deque(maxlen=1000)`, or write entries only to the JSONL log file and drop the in-memory list entirely since it is only used for `_print_status_table`. The status table can operate on the last N entries from the deque.
+file_path: cycles/001/findings/F-001-003.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-001
+verdict: Fail
+content_hash: "33ef0064497945aa3eb72fae357a8b774d1d9bac4fac662709a8df14c8ceba98"
+token_count: 282

@@ -1,0 +1,19 @@
+id: FI-001-010
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: critical
+title: "`@pytest.mark.asyncio` decorators redundant with asyncio_mode = \"auto\""
+description: |
+  - **File**: `mcp/remote-worker/test_server.py` (all test functions)
+  - **Issue**: All 27 test functions decorated with `@pytest.mark.asyncio` despite pyproject.toml setting `asyncio_mode = "auto"`, which makes the decorator redundant and misleading.
+  - **Impact**: Decorator noise; if asyncio_mode is ever removed, tests silently degrade.
+  - **Suggested fix**: Remove all `@pytest.mark.asyncio` decorators from test functions. Fixed in rework.
+file_path: cycles/001/findings/FI-001-010.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-031
+verdict: Pass
+content_hash: "49c7271306b10cd71694121b6ab3ddd8a798941053b7ab4542cf4d628031fe3e"
+token_count: 194

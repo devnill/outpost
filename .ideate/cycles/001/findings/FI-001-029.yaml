@@ -1,0 +1,19 @@
+id: FI-001-029
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: AC2 assertion incomplete — GET call not verified
+description: |
+  - **File**: `mcp/session-spawner/test_server.py:875`
+  - **Issue**: `test_spawn_remote_session_no_workers_returns_error_no_http_call` asserted `mock_session.post.assert_not_called()` but not `mock_session.get.assert_not_called()`. AC2 states "no HTTP call made" which covers both verbs.
+  - **Impact**: A regression adding a GET before the early-return guard would pass the test silently.
+  - **Suggested fix**: Add `mock_session.get.assert_not_called()`. Fixed in rework.
+file_path: cycles/001/findings/FI-001-029.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-034
+verdict: Pass
+content_hash: "1384e4990420a6b3d754e750e91d06cd22f850746b39057b828879f3f37b00d6"
+token_count: 195

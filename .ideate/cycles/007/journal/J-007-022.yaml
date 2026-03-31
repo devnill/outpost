@@ -1,0 +1,11 @@
+id: J-007-022
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 1 — Work item 030: Fix conftest sys.modules key collision between test suites"
+content: |
+  Status: complete
+  No rework needed. Combined pytest run now produces 124 passed, 0 errors from repository root.
+content_hash: c80ea233db4fdbe71fd198ad261be255a59db42d89c644822bab05c125a02ff1
+token_count: 78

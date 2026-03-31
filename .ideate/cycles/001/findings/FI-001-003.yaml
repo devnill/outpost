@@ -1,0 +1,15 @@
+id: FI-001-003
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: No tests (addressed by WI-031)
+description: - Tests for the remote worker daemon are scoped to WI-031. Deferred intentionally.
+file_path: cycles/001/findings/FI-001-003.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-030
+verdict: Pass
+content_hash: f74a2ebad0cab81803b021e635f1daac7ea6cdc129610aa636c0de4debe5bfba
+token_count: 94

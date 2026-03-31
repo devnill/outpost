@@ -1,0 +1,13 @@
+id: D-02
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: Roles are defined in JSON files loaded when the server starts. There is no API for dynamic role creation or modification at runtime.
+rationale: Security and simplicity — static roles cannot be injected at request time by a malicious caller.
+cycle_created: 1
+cycle_modified: null
+content_hash: d98d6a7a11702d6cea2bd1f81c6fd04ec4aa3999d5bdb1de8c35039cd50e3f43
+token_count: 114
+file_path: .ideate/decisions/D-02.yaml

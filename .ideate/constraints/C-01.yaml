@@ -1,0 +1,10 @@
+id: C-01
+type: constraint
+category: technology
+status: active
+description: MCP Protocol Compliance. The server must implement the Model Context Protocol specification. Tool schemas must match expected input/output types. Error responses must use proper MCP error types. Async tool execution must follow MCP conventions.
+cycle_created: 1
+cycle_modified: null
+content_hash: "7293b4c48a42a5caee1fef6d8e8d34eb313707dae9985e16e205c677d43d42db"
+token_count: 105
+file_path: .ideate/constraints/C-01.yaml

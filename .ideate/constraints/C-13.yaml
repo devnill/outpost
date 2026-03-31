@@ -1,0 +1,10 @@
+id: C-13
+type: constraint
+category: process
+status: active
+description: Safe Root Enforcement. When `OUTPOST_SAFE_ROOT` is configured, sessions can only operate within that directory tree. This is a security constraint for untrusted prompts.
+cycle_created: 1
+cycle_modified: null
+content_hash: "209c9f602de92f87dce91f4e030de3604abbdfcb6bb55d4c61ad1a9658231e90"
+token_count: 85
+file_path: .ideate/constraints/C-13.yaml

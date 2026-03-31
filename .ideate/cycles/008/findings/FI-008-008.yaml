@@ -1,0 +1,20 @@
+id: FI-008-008
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: minor
+title: "`_make_mock_proc` default `stdout` value is a plain string, not JSON"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:1325-1330`
+  - **Issue**: `_make_mock_proc` defaults `stdout="output"`, which is not valid JSON. `_run_claude_job` itself does not parse stdout (that happens upstream in the caller), so this does not cause a failure in the tests as written. However, if a future test reuses `_make_mock_proc` and passes the return value through the full `_process_job` path, it will produce an uninformative failure rather than a meaningful one.
+  - **Suggested fix**: Default to a valid JSON string consistent with what the rest of the test suite uses: `stdout='{"result": "ok"}'`.
+  
+  ---
+file_path: cycles/008/findings/FI-008-008.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-049
+verdict: null
+content_hash: ec368c89d75bbe861ac14981b06f5997abac15904326616c1ef15fedab3497b9
+token_count: 242

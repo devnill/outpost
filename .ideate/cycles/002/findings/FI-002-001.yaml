@@ -1,0 +1,18 @@
+id: FI-002-001
+type: finding
+cycle: 2
+reviewer: code-reviewer
+severity: minor
+title: Timeout path truncates `partial_stdout` by character index, not byte boundary
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:548`
+  - **Issue**: On the timeout branch, `partial_stdout[:DEFAULT_MAX_OUTPUT_BYTES]` slices a Python `str` by character count (50,000 characters), not by the 50 KB byte boundary that criterion 7 specifies and the non-timeout path correctly enforces. A string containing multi-byte UTF-8 characters could exceed 50,000 bytes while staying under 50,000 characters; the inverse is not possible, so this only over-truncates, but it is inconsistent with the stated semantic.
+  - **Suggested fix**: Apply the same encode/decode pattern used on the success path: `partial_stdout.encode("utf-8")[:DEFAULT_MAX_OUTPUT_BYTES].decode("utf-8", errors="ignore")`.
+file_path: cycles/002/findings/FI-002-001.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-011
+verdict: Pass
+content_hash: e17a23ec4b3f2e38b0375f4cac250508d9f86b8ff470d42de7f5855e2651e491
+token_count: 264

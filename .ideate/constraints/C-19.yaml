@@ -1,0 +1,10 @@
+id: C-19
+type: constraint
+category: scope
+status: active
+description: Environment Variable Configuration. All configuration uses environment variables. No config files, no command-line flags for the MCP server. This matches Claude Code's plugin model.
+cycle_created: 1
+cycle_modified: null
+content_hash: f9a9a0743a16e4905229924ed4fdcef9aef476f82ac4b14afedc8f8644ed4008
+token_count: 88
+file_path: .ideate/constraints/C-19.yaml

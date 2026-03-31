@@ -1,0 +1,11 @@
+id: GP-11
+type: guiding_principle
+name: Stateless Server
+status: active
+description: The MCP server maintains no persistent state between tool calls. All session tracking uses the filesystem. This allows the server to be restarted without losing visibility into running sessions. Process state lives in the OS; job state lives in files.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: "2bffac7cd9abc8bc52c2f05383c8445752986bd7e2d2db2fbc8c49d665e120e9"
+token_count: 115
+file_path: .ideate/principles/GP-11.yaml

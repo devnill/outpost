@@ -1,0 +1,12 @@
+id: J-007-010
+type: journal_entry
+phase: brrr
+date: "2026-03-21"
+cycle_created: 7
+title: "Cycle 1 — Refinement: 3 new work items (025–027)"
+content: |
+  Trigger: SG1 (integration tests bypass MCP layer), SG2 (README token_usage contract)
+  New items: WI-025 (fix integration tests), WI-026 (doc sweep), WI-027 (code hygiene)
+  All easy complexity. No architecture changes.
+content_hash: "336bd5c559f72f3b12306a0b1b27aecab738fac97b17efaad4371ba2ac91096e"
+token_count: 95

@@ -1,0 +1,24 @@
+id: FI-009-003
+type: finding
+cycle: 9
+reviewer: code-reviewer
+severity: minor
+title: Dockerfile referenced by directory path rather than explicit filename
+description: |
+  - **File**: `/Users/dan/code/outpost/README.md:77`
+  - **Issue**: The `docker build` command is `docker build -t outpost-agent:latest mcp/remote-worker/`, which passes the directory as the build context and implicitly uses `mcp/remote-worker/Dockerfile`. The acceptance criterion says the section must "reference `mcp/remote-worker/Dockerfile` as image source." The filename `Dockerfile` never appears in the section.
+  - **Suggested fix**: Change the command to explicitly name the file, or add a preceding sentence such as "The `mcp/remote-worker/Dockerfile` defines the agent image." For example:
+  
+  ```bash
+  docker build -t outpost-agent:latest -f mcp/remote-worker/Dockerfile mcp/remote-worker/
+  ```
+  
+  or keep the current short form and add a prose callout: "The image is defined by `mcp/remote-worker/Dockerfile`."
+file_path: cycles/009/findings/FI-009-003.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-053
+verdict: Pass
+content_hash: "1cafdd3e11246bfaa1b4b0fc922c7c9f217d1ab1239067c2e15873902df28639"
+token_count: 288

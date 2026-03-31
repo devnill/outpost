@@ -1,0 +1,13 @@
+id: D-33
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: In `cancel_job`, `proc.terminate()` is now conditional on `not container_name`. When cancelling a containerized job, `docker stop` already causes `docker run` to exit; a subsequent `proc.terminate()` is structurally wrong because it always hits the `ProcessLookupError` exception path on an already-exited process.
+rationale: "`docker stop` sends SIGTERM then SIGKILL to the container's main process, which causes the host-side `docker run` process to exit. The unconditional `proc.terminate()` was redundant in container mode and exercised the exception handler on every container cancel, not just edge cases."
+cycle_created: 1
+cycle_modified: null
+content_hash: f125e79dc2e04bc2d87b0307f9b31929a4366e5bf015ac434c61c1e3b8975836
+token_count: 205
+file_path: .ideate/decisions/D-33.yaml

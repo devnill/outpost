@@ -1,0 +1,14 @@
+id: Q-06
+type: domain_question
+domain: session-lifecycle
+status: open — escalated in cycle 7
+impact: Users see internal exception rather than actionable error; violates implicit requirement IR1 (meaningful error messages).
+source: Gap analysis EC2 (archive/cycles/003/gap-analysis.md)
+resolution: null
+resolved_in: null
+description: Should FileNotFoundError from missing `claude` binary be caught and converted to helpful error message?
+cycle_created: 1
+cycle_modified: null
+content_hash: e129beac11f0d1adfd1f5ff9f39152548533bce13a72d61ead4131c9c8e72f14
+token_count: 135
+file_path: .ideate/questions/Q-06.yaml

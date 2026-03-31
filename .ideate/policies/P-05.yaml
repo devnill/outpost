@@ -1,0 +1,14 @@
+id: P-05
+type: domain_policy
+domain: session-lifecycle
+status: active
+derived_from:
+  - GP-9 (Depth Limits)
+established: planning phase
+amended: null
+description: Sessions at maximum depth must receive an error response before session creation. Soft limits and warnings are not acceptable substitutes for hard enforcement.
+cycle_created: 1
+cycle_modified: null
+content_hash: "071bb2cdea1765d73e15b59e87f7d69f5d9f6bd7bc29080e7a6624d79058504e"
+token_count: 106
+file_path: .ideate/policies/P-05.yaml

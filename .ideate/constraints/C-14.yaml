@@ -1,0 +1,10 @@
+id: C-14
+type: constraint
+category: process
+status: active
+description: API Key Required for Remote. Remote workers require an API key for authentication. There is no anonymous access mode. Workers without an API key configured reject all requests.
+cycle_created: 1
+cycle_modified: null
+content_hash: "4806b49b1e3cbc55349e64831bdc01fbb5b12aad06ff82a71b878c6194a75180"
+token_count: 87
+file_path: .ideate/constraints/C-14.yaml

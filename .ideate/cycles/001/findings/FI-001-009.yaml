@@ -1,0 +1,15 @@
+id: FI-001-009
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: _get_max_concurrency() called redundantly in health endpoint
+description: "- **Resolution**: Fixed. `_max_concurrency` stored at startup in lifespan, referenced in health endpoint."
+file_path: cycles/001/findings/FI-001-009.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-030
+verdict: Pass
+content_hash: "10a4f085bacf26b60178aa4ab3ab34e36f18e4a75ccde34a5fb90a22897dad50"
+token_count: 105

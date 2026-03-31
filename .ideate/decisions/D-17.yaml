@@ -1,0 +1,13 @@
+id: D-17
+type: domain_decision
+domain: session-lifecycle
+status: settled — resolved by D-18 in cycle 5
+cycle: 5
+supersedes: null
+description: WI-015 propagated `allowed_tools`, `permission_mode`, and `max_turns` to remote sessions but omitted `system_prompt`. Local spawn prepends system_prompt to the prompt at lines 289-292; the remote dispatch path has no equivalent. Three built-in roles (`reviewer`, `manager`, `proxy-human`) express behavioral contracts primarily through system_prompt. The omission silently degrades role guarantees for remote sessions.
+rationale: WI-015 was scoped to tool constraints and permission mode. The system_prompt dimension was not explicitly in or out of scope, producing an incomplete fix. Whether to propagate system_prompt requires user decision (see Q-10).
+cycle_created: 1
+cycle_modified: null
+content_hash: "9b96ce4686efc13bc9b6cd422dc63077c5cb257983fd29fadcde60fbc16ae0b2"
+token_count: 225
+file_path: .ideate/decisions/D-17.yaml

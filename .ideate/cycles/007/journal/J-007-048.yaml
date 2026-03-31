@@ -1,0 +1,11 @@
+id: J-007-048
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 4 — Work item 041: Replace FileNotFoundError sentinel with dedicated type"
+content: |
+  Status: complete
+  No rework required. 42 remote-worker tests pass.
+content_hash: "90e2d37efff083e46864a43837fc9b6d7444843e114c755840ec72f172325545"
+token_count: 65

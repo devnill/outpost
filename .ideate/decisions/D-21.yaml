@@ -1,0 +1,13 @@
+id: D-21
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 4
+supersedes: null
+description: "Targeted corrections to three documentation artifacts: README cancel eligibility updated for running jobs, architecture job-states table corrected, OUTPOST_TIMEOUT annotated as not-implemented, role documentation contradiction resolved in both READMEs. Three documentation gaps remain open (OQ-014, OQ-015, OQ-016)."
+rationale: Cycle 4 identified multiple documentation/implementation divergences. WI-023 addressed the highest-impact items.
+cycle_created: 1
+cycle_modified: null
+content_hash: bc670ad19c5dade78d8f572a14e25ae4b120985caf6d7e7f3256c3af5877f478
+token_count: 163
+file_path: .ideate/decisions/D-21.yaml

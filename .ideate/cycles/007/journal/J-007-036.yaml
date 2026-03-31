@@ -1,0 +1,12 @@
+id: J-007-036
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: Cycle 1 refinement
+content: |
+  Findings addressed: 0 critical, 4 significant
+  New work items created: WI-034 (Fix _run_claude_job FileNotFoundError lock race and communicate() timeout), WI-035 (Cap _session_registry with bounded deque), WI-036 (Fix cancel_remote_job sequential fan-out)
+  Work items reset for rework: none
+content_hash: "167679f4f7049b93234d9e0f8b2bb1eaf49c05a5aa5f0af01429f8eb3648cf29"
+token_count: 106

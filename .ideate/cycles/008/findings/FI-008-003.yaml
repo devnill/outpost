@@ -1,0 +1,17 @@
+id: FI-008-003
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: critical
+title: "`container_name` set after cancelled guard and after `record.process = proc`"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:461-470`
+  - **Status**: Correctly fixed. The cancelled guard is at line 462. `record.process = proc` is at line 468. `record.container_name = f"job-{record.job_id}"` is at lines 469-470, guarded by `if _agent_image`. Both assignments occur after the guard, in the correct order.
+file_path: cycles/008/findings/FI-008-003.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-048
+verdict: null
+content_hash: "41941704ab0bb814d53d8030bd75458f8ebf1a6dbaa37cb321b885d92c21d9e7"
+token_count: 170

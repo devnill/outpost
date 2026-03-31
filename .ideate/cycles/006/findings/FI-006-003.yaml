@@ -1,0 +1,18 @@
+id: FI-006-003
+type: finding
+cycle: 6
+reviewer: code-reviewer
+severity: minor
+title: Lock comment placed above docstring rather than inside it
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:305-306`
+  - **Issue**: The lock precondition comment (`# Must be called while holding job_store_lock.`) appears on the line before the function's docstring. Convention in this codebase is to put explanatory text inside the docstring. The comment is not wrong, but it is inconsistent: tooling that renders docstrings will not display it.
+  - **Suggested fix**: Merge the precondition into the docstring: `"""Must be called while holding job_store_lock. Remove oldest terminal jobs when job_store exceeds _max_jobs."""`
+file_path: cycles/006/findings/FI-006-003.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-027
+verdict: Pass
+content_hash: d1710a1eb739e226e1d6414c8fb6a93693861997b79259144dfd9b21837dcd7b
+token_count: 225

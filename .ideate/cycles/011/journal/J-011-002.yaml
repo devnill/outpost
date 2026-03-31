@@ -1,0 +1,11 @@
+id: J-011-002
+type: journal_entry
+phase: execute
+date: "2026-03-22"
+cycle_created: 11
+title: "Work item 047: Dockerfile for outpost agent container image"
+content: |
+  Status: complete with rework
+  Rework: 1 critical finding fixed from incremental review. The base image `node:20-bookworm-slim` ships with a `node` user at uid 1000, causing `useradd -u 1000 agent` to fail with "UID is not unique". Fixed by renaming the existing `node` user/group to `agent` via `usermod -l agent -d /home/agent -m node && groupmod -n agent node`. Redundant `mkdir -p /workspace` also removed (WORKDIR creates the directory owned by the active user).
+content_hash: cbf06061a16a6165db2903594ee6460ba61fcd9aa5e6e5acc8385339a965c15c
+token_count: 162

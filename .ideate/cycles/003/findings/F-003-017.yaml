@@ -1,0 +1,15 @@
+id: F-003-017
+type: finding
+cycle: 3
+reviewer: code-reviewer
+severity: minor
+title: "`_handle_spawn_remote_session` does not validate `working_dir` before HTTP calls (carry-forward)"
+description: "- **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:736-810`"
+file_path: cycles/003/findings/F-003-017.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-003
+verdict: Fail
+content_hash: cfa9fd4c1c5cd598f9a671fb96b56b60c7a8ae85af1b624adfe1ae4e1acb34b3
+token_count: 107

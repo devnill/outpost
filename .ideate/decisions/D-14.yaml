@@ -1,0 +1,13 @@
+id: D-14
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: Session-spawner resolves role definition at dispatch time and sends resolved `allowed_tools` and `permission_mode` in HTTP payload.
+rationale: Option A chosen over Option B — simpler deployment, no need to synchronize role definitions across worker nodes.
+cycle_created: 1
+cycle_modified: null
+content_hash: "8f626a727074d3cf17cd37714cb37aabda346272fcfaec3f887410871ededc9a"
+token_count: 117
+file_path: .ideate/decisions/D-14.yaml

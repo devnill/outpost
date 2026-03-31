@@ -1,0 +1,13 @@
+id: D-34
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: The `_FILE_NOT_FOUND` sentinel log message now reads `"docker not found"` when `_agent_image` is set, vs `"claude not found"` otherwise. The error text stored in `record.error` already branched correctly (D-27); this fix aligns the log output to match.
+rationale: Operators tailing logs in container mode were seeing "claude not found" when the real issue was a missing docker binary, misdirecting investigation.
+cycle_created: 1
+cycle_modified: null
+content_hash: bf43ba224eff18f884707305b917a442a4e37b69c3aa460ccee28cf55db51712
+token_count: 158
+file_path: .ideate/decisions/D-34.yaml

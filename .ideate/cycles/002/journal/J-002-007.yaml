@@ -1,0 +1,11 @@
+id: J-002-007
+type: journal_entry
+phase: brrr
+date: "2026-03-16"
+cycle_created: 2
+title: "Cycle 1 — Work item 017: Implement Running Job Cancellation"
+content: |
+  Status: complete
+  Rework: none. All 32 remote-worker tests pass. JobRecord.process field added, cancel_job handles running jobs via SIGTERM/SIGKILL, _process_job preserves cancelled status.
+content_hash: "3f9953af8d7f87a3334f7ad75f0fd85cc6fb98d1bf90836961777ffa712230f3"
+token_count: 91

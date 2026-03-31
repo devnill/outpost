@@ -1,0 +1,15 @@
+id: FI-001-017
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: No tests for role behavior (deferred to WI-034)
+description: - WI-034 is the designated test work item for session-spawner additions including role system. Not a failure of this work item.
+file_path: cycles/001/findings/FI-001-017.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-032
+verdict: Pass
+content_hash: "2882ae294fdff2d65dff1f3b1971e0ac3efd89e2162a61465be0083c521aad09"
+token_count: 109

@@ -1,0 +1,10 @@
+id: C-12
+type: constraint
+category: process
+status: active
+description: Timeout Is Mandatory. Every session must have a timeout. The default (600 seconds) protects against hung sessions. Sessions that exceed timeout are terminated via SIGKILL.
+cycle_created: 1
+cycle_modified: null
+content_hash: cabe80a7a9c306bd9ff934eca9670cf3b13a28ae1e0631fe6971392f009267ed
+token_count: 86
+file_path: .ideate/constraints/C-12.yaml

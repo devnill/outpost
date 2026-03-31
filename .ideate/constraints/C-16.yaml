@@ -1,0 +1,10 @@
+id: C-16
+type: constraint
+category: scope
+status: active
+description: No Built-In Queue Persistence. Jobs are queued in memory. A server restart clears the queue. For persistent job queues, use an external orchestration layer. This is a deliberate scope boundary.
+cycle_created: 1
+cycle_modified: null
+content_hash: "12bf5b47b0769373792843aeb733f1251b3c6dc1f65f6bcdbdd9fefb92f2bcc7"
+token_count: 91
+file_path: .ideate/constraints/C-16.yaml

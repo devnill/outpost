@@ -1,0 +1,13 @@
+id: D-23
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 7
+supersedes: null
+description: Cycle 7 capstone review identified that remote-worker's `_run_claude_job` sets `cwd=` on the subprocess but does not pass `--cwd` to the Claude CLI, unlike session-spawner which passes both. The `--cwd` flag controls project root for config discovery, CLAUDE.md loading, and trust boundary enforcement. A docstring falsely claims equivalent patterns. Preferred fix is adding `--cwd` to the remote-worker command array (one line) to eliminate the divergence.
+rationale: Process cwd inheritance and `--cwd` flag are currently equivalent in practice, but the divergence is a latent correctness risk if Claude CLI behavior changes. The false docstring claim compounds the risk.
+cycle_created: 1
+cycle_modified: null
+content_hash: "8677314d480e0ed777894455430ce58d8950f41576fee27de21fdcb9890a5e8f"
+token_count: 221
+file_path: .ideate/decisions/D-23.yaml

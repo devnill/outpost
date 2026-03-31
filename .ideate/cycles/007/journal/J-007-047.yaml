@@ -1,0 +1,12 @@
+id: J-007-047
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 4 — Work item 040: Fix _handle_cancel_remote_job connection error masking"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed — final fallback message now includes connection error details alongside not-found workers when there is a mix, distinguishing confirmed absences from network failures.
+  82 session-spawner tests pass.
+content_hash: f18a65a8d55ea3ae75caee4f0260bacea69e43e50b09e1edfe4ce3a8c5995560
+token_count: 114

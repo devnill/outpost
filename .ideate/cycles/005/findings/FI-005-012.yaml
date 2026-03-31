@@ -1,0 +1,18 @@
+id: FI-005-012
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: minor
+title: Server teardown uses fixed `should_exit = True` with no timeout
+description: |
+  - **File**: `mcp/test_integration.py:92-93`
+  - **Issue**: The fixture sets `server.should_exit = True` then `await task` with no timeout. If the uvicorn task hangs, the test suite hangs indefinitely.
+  - **Impact**: Low — test execution has confirmed this works in practice. A future CI runner with strict test timeouts would eventually kill it.
+file_path: cycles/005/findings/FI-005-012.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-021
+verdict: Pass
+content_hash: "87388430e30f62f87e712b60c9276e51544886ec79a07b0c920e84d5245e730c"
+token_count: 166

@@ -1,0 +1,14 @@
+id: Q-24
+type: domain_question
+domain: remote-dispatch
+status: partially resolved
+impact: Future reviewers cannot determine from the architecture whether API key injection is intentional behavior.
+source: archive/cycles/008/spec-adherence.md (U7), archive/cycles/008/decision-log.md (OQ-034)
+resolution: READMEs updated to document ANTHROPIC_API_KEY passthrough (WI-052, WI-053). Architecture Section 9 still does not describe it (U7 carried forward).
+resolved_in: 9
+description: Should architecture Section 9 describe the `ANTHROPIC_API_KEY` injection into containers? The passthrough is necessary for correct operation but absent from the container lifecycle description.
+cycle_created: 1
+cycle_modified: null
+content_hash: "8a729875b7c158bf7dd2c61ff0ff6cd131dede6c68de40bebeaf3a6ffc7fe74c"
+token_count: 195
+file_path: .ideate/questions/Q-24.yaml

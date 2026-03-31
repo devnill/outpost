@@ -1,0 +1,11 @@
+id: GP-09
+type: guiding_principle
+name: Depth Limits
+status: active
+description: Recursive session spawning is bounded. The depth limit prevents infinite recursion when a spawned session itself tries to spawn. Limits are enforced server-side and communicated via environment variables.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: aaa2efb3ead27ad3bd0acdd46a46dc998f78d11424b30faef2cdcd963e49ec91
+token_count: 102
+file_path: .ideate/principles/GP-09.yaml

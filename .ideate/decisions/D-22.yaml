@@ -1,0 +1,13 @@
+id: D-22
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 5
+supersedes: null
+description: "WI-026 closed three remaining documentation gaps: `cancel_remote_job` added to architecture.md component map and session-spawner README tool list; `IDEATE_WORKER_MAX_JOBS` added to remote-worker README env var table; `max_jobs` added to architecture.md health endpoint schema. The architecture.md Section 8 env var reference table was not in scope and still omits `IDEATE_WORKER_MAX_JOBS` (see Q-16)."
+rationale: Cycle 5 review identified these as documentation/implementation divergences (OQ-014, OQ-015, OQ-016). Straightforward additions with no design decisions required.
+cycle_created: 1
+cycle_modified: null
+content_hash: "72b26ae13a5ca3921e0e20372bbe0450a1ac3760a8567e137f829025f668f96b"
+token_count: 197
+file_path: .ideate/decisions/D-22.yaml

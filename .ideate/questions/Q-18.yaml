@@ -1,0 +1,14 @@
+id: Q-18
+type: domain_question
+domain: remote-dispatch
+status: open
+impact: "Latent correctness risk if Claude CLI `--cwd` handling ever diverges from process cwd inheritance. False docstring claim amplifies the risk by asserting equivalence that does not exist. Preferred fix: add `\"--cwd\", record.working_dir` to `cmd` at `mcp/remote-worker/server.py:354`."
+source: archive/cycles/007/code-quality.md (M4), archive/cycles/007/decision-log.md (OQ-023)
+resolution: null
+resolved_in: null
+description: Remote-worker's `_run_claude_job` sets `cwd=record.working_dir` on the subprocess but does not pass `--cwd` to the Claude CLI, unlike session-spawner which passes both. The `--cwd` flag controls Claude CLI project root for config discovery, CLAUDE.md loading, and trust boundary enforcement. A docstring falsely claims equivalent subprocess patterns between the two servers. Should `--cwd` be added to the remote-worker command, or is the difference intentional?
+cycle_created: 1
+cycle_modified: null
+content_hash: "12dc515f1cc3d1475878e0a50e4b5ab72e6a1054cf82a782ce6084a985aaa270"
+token_count: 267
+file_path: .ideate/questions/Q-18.yaml

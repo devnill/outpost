@@ -1,0 +1,18 @@
+id: FI-001-019
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: Unclosed file handles in _load_roles
+description: |
+  - **File**: `mcp/session-spawner/server.py:486,502`
+  - **Issue**: `json.load(open(...))` without `with` statement.
+  - **Resolution**: Fixed. Both calls replaced with `with open(...) as f:` pattern.
+file_path: cycles/001/findings/FI-001-019.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-032
+verdict: Pass
+content_hash: "05b3779d2461fd515a3d5cf250360dc8f358cb675fd86a0a8a61efdd627a7813"
+token_count: 122

@@ -1,0 +1,13 @@
+id: D-09
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: The timeout code path now uses encode/slice/decode for output truncation, matching the 50KB byte semantic used in the success path. Previously, character-count slicing was used inconsistently.
+rationale: Incremental review M1 identified that character-count slicing in the timeout path was inconsistent with the byte-based truncation in the success path.
+cycle_created: 1
+cycle_modified: null
+content_hash: "0bb40c6fc6b3a64a89d71bb9cb579c7d86f83b662bbeacf45e4d71e28a3581eb"
+token_count: 142
+file_path: .ideate/decisions/D-09.yaml

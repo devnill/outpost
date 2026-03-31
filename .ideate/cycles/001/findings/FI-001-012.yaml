@@ -1,0 +1,19 @@
+id: FI-001-012
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: "`asyncio.get_event_loop()` deprecated in Python 3.10+"
+description: |
+  - **File**: `mcp/remote-worker/test_server.py:477-478`
+  - **Issue**: `asyncio.get_event_loop().time()` inside an async function where a running loop exists; use `asyncio.get_running_loop()` instead.
+  - **Impact**: DeprecationWarning in Python 3.10+; will be an error in a future version.
+  - **Suggested fix**: Replace with `asyncio.get_running_loop()`. Fixed in rework.
+file_path: cycles/001/findings/FI-001-012.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-031
+verdict: Pass
+content_hash: "5eaf9d2180e7a0b1e64602556f5b61af801a5f54c29f7ad86fb7d14034b3f4ee"
+token_count: 171

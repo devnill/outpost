@@ -1,0 +1,14 @@
+id: Q-13
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: Architecture and README describe only 4 tools while the implementation has 5. Callers reading documentation will not discover the cancellation tool.
+source: archive/cycles/005/spec-adherence.md (Architecture Deviation), archive/cycles/005/decision-log.md (OQ-014)
+resolution: WI-026 added `cancel_remote_job` to architecture.md component map and session-spawner README tool list.
+resolved_in: 6
+description: WI-019 added `cancel_remote_job` as the fifth MCP tool. WI-023 updated adjacent documentation but did not add it to the architecture.md component map tool list or the session-spawner README tool table. Should both be updated?
+cycle_created: 1
+cycle_modified: null
+content_hash: "42663ecdcfc0cdf70aa2c7964f9a501279b5a852b3c0e7f778f8d19ce56ff2dc"
+token_count: 205
+file_path: .ideate/questions/Q-13.yaml

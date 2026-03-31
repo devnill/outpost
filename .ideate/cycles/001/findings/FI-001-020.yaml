@@ -1,0 +1,18 @@
+id: FI-001-020
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: Overbroad exception handling swallows schema errors
+description: |
+  - **File**: `mcp/session-spawner/server.py:487,503`
+  - **Issue**: `except Exception` catches `KeyError` from missing `name` field with no actionable message.
+  - **Resolution**: Fixed. Each role entry validated individually with index-specific warning. Exception type narrowed to `(OSError, json.JSONDecodeError)`.
+file_path: cycles/001/findings/FI-001-020.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-032
+verdict: Pass
+content_hash: "2851ced9804d618100df79827a8ec200ad26305f24703ec3c7241f5a68da3bca"
+token_count: 155

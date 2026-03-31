@@ -1,0 +1,16 @@
+id: P-07
+type: domain_policy
+domain: session-lifecycle
+status: active
+derived_from:
+  - GP-3 (Graceful Degradation)
+  - Q-6 (open since cycle 3
+  - escalated cycle 7)
+established: cycle 7
+amended: null
+description: All subprocess invocations of the `claude` CLI must catch `FileNotFoundError` and return a structured, actionable error message ("claude CLI not found on PATH") rather than propagating a raw Python exception. This applies to both session-spawner and remote-worker.
+cycle_created: 1
+cycle_modified: null
+content_hash: d79512f77abd187ef1dbf64b76d8399d0709edd81f9a68b0676321450ed1e51a
+token_count: 145
+file_path: .ideate/policies/P-07.yaml

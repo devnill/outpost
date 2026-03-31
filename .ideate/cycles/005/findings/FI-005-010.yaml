@@ -1,0 +1,18 @@
+id: FI-005-010
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: minor
+title: "`_evict_terminal_jobs` is called with the lock held but is not marked as requiring the lock in a machine-checkable way"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:300-309`
+  - **Issue**: The docstring says "Called under job_store_lock" but there is no enforcement. The function accesses `job_store` directly and is called from three call sites (`cancel_job` at lines 265, 274, and `_process_job` at line 396), all under the lock. If a future call site omits the lock, data will be corrupted silently.
+  - **Suggested fix**: This is a documentation/convention issue. Consider adding an assertion `assert job_store_lock.locked()` at the top of the function, or rename to `_evict_terminal_jobs_locked` to signal the contract.
+file_path: cycles/005/findings/FI-005-010.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-020
+verdict: Pass
+content_hash: "3b00032b3221f81ec6d3b40ad754ab024928a3fa195084abee62d5eaf6253edd"
+token_count: 250

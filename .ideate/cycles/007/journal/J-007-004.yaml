@@ -1,0 +1,12 @@
+id: J-007-004
+type: journal_entry
+phase: brrr
+date: "2026-03-21"
+cycle_created: 7
+title: Overall metrics summary
+content: |
+  Agents spawned: ~31 total across 2 cycles (7 workers + 7 incremental reviewers + 5 comprehensive reviewers + 1 curator in cycle 1; 3 workers + 3 incremental reviewers + 5 comprehensive reviewers + 1 curator in cycle 2)
+  Total wall-clock: metrics unavailable (brrr execution metrics not recorded to metrics.jsonl)
+  Models used: sonnet (workers, reviewers), claude-opus-4-6 (domain-curator)
+content_hash: e978d479d2a3fd694368c9e55c523478d58974af225394d81843729070b8b98d
+token_count: 132

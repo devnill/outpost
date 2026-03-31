@@ -1,0 +1,13 @@
+id: J-002-006
+type: journal_entry
+phase: review
+date: "2026-03-16"
+cycle_created: 2
+title: User decisions recorded
+content: |
+  - Q: Should spawn_session remain synchronous or should poll_session be implemented? Accept synchronous. Update architecture to document synchronous as final design. Remove poll_session from architecture and README.
+  - Q: Are timed-out subprocesses actually killed? Verified via CPython source — subprocess.run() calls process.kill() internally on TimeoutExpired. No fix needed. C12 satisfied.
+  - Q: Role resolution for remote sessions — Option A or B? Option A. Session-spawner resolves role at dispatch time and sends resolved allowed_tools and permission_mode in the HTTP payload.
+  - Q: Should running job cancellation be implemented? Yes.
+content_hash: fabb0b1ab9727b702d14002704e8374b14b6ded1552a9b7979b4c12251fd5890
+token_count: 196

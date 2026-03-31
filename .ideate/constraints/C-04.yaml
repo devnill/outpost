@@ -1,0 +1,10 @@
+id: C-04
+type: constraint
+category: technology
+status: active
+description: Filesystem-Based State. All state management uses the filesystem. No databases, no in-memory session stores, no external state services. This is a hard constraint for simplicity and recoverability.
+cycle_created: 1
+cycle_modified: null
+content_hash: "53a0f03a5c2766eb72cf5cd341aa22fe9b482f6f0339d01c6d85fcd6d71ab0c0"
+token_count: 93
+file_path: .ideate/constraints/C-04.yaml

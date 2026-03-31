@@ -1,0 +1,17 @@
+id: FI-008-004
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: critical
+title: "`FileNotFoundError` handler branches on `_agent_image`"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:449-460`
+  - **Status**: Correctly fixed. The `except FileNotFoundError` block branches on `_agent_image` and returns `"docker not found on PATH..."` in container mode and `"claude CLI not found on PATH..."` otherwise.
+file_path: cycles/008/findings/FI-008-004.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-048
+verdict: null
+content_hash: "1f0d724d894c5dfce87feaacff5bc709351105d59cad5c3b4042046dc04e89a0"
+token_count: 149

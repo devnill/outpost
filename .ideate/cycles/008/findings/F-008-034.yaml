@@ -1,0 +1,18 @@
+id: F-008-034
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: minor
+title: WI-048 M1 — `_evict_terminal_jobs_locked` not called in cancel-while-starting path
+description: |
+  - **File**: `mcp/remote-worker/server.py:502-506`
+  - **Issue**: When `_run_claude_job` returns `None` (cancel-while-starting sentinel), `_process_job` acquires the lock and sets `record.duration_ms` but does not call `_evict_terminal_jobs_locked()`. The record is already in `cancelled` state (set by `cancel_job`, which did call the eviction function at line 299), so no eviction is needed at that moment. However, if the job was cancelled *before* it was ever picked up by a worker (i.e., the `cancel_job` eviction ran when the store was not over capacity, then more jobs arrived), and now the store is at capacity, this path silently skips eviction.
+  - **Suggested fix**: Add `_evict_terminal_jobs_locked()` after setting `record.duration_ms` in the `result is None` branch (server.py line 505), consistent with every other terminal-state transition in `_process_job`.
+file_path: cycles/008/findings/F-008-034.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-008
+verdict: Fail
+content_hash: bb0ab7b3dff2c9b52c2d08d89902e3b638b97b5e87731fa6a708a1a844a81346
+token_count: 303

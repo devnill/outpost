@@ -1,0 +1,11 @@
+id: J-009-005
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 9
+title: "Cycle 1 — Work item 044: Remote-worker cancel-path tests (CF2, CF3, CF5)"
+content: |
+  Status: complete
+  Minor warning noted in review: CF5 patch produces RuntimeWarning (unawaited coroutine) at teardown — warning only, tests pass.
+content_hash: "09d3a4698d795d08ecb2340e2030e5da8d281d5bbeb49707c00539e89fc6afbc"
+token_count: 83

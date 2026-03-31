@@ -1,0 +1,10 @@
+id: C-08
+type: constraint
+category: design
+status: active
+description: Prompt Size Limits. Prompts exceeding 100KB are rejected. This protects against context overflow and ensures spawned sessions receive usable prompts.
+cycle_created: 1
+cycle_modified: null
+content_hash: "5f0397cc03153ea688d7e190f0ca70031bc660209e5d6975936af418bf5efe5a"
+token_count: 80
+file_path: .ideate/constraints/C-08.yaml

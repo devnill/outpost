@@ -1,0 +1,33 @@
+id: FI-009-001
+type: finding
+cycle: 9
+reviewer: code-reviewer
+severity: significant
+title: ANTHROPIC_API_KEY preflight has no test coverage
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py`
+  - **Issue**: There is no test that exercises the guard added at `server.py:211-219`. No test sets `_agent_image` to a non-empty value, omits `ANTHROPIC_API_KEY` from the environment, and posts to `/jobs` to confirm a 500 response with the required detail message. The worker self-check claims criterion 6 ("ANTHROPIC_API_KEY change does not break any existing tests") is satisfied, but criterion 2 (the preflight check itself) has no test at all.
+  - **Impact**: A regression that removes or mis-conditions this guard will not be caught by the test suite.
+  - **Suggested fix**: Add a test such as:
+    ```python
+    @pytest.mark.asyncio
+    async def test_create_job_container_mode_missing_api_key_returns_500(client, auth_headers, tmp_working_dir, monkeypatch):
+        monkeypatch.setattr(worker, "_agent_image", "outpost-agent:latest")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        resp = await client.post(
+            "/jobs",
+            json={"prompt": "test", "working_dir": tmp_working_dir},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 500
+        assert "ANTHROPIC_API_KEY is not set" in resp.json()["detail"]
+        assert "Container mode requires ANTHROPIC_API_KEY" in resp.json()["detail"]
+    ```
+file_path: cycles/009/findings/FI-009-001.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-051
+verdict: Pass
+content_hash: c9101c6cb0d5787a17541b1328d23bede71f6901551f0ecac961d1b4ae30a2c1
+token_count: 416

@@ -1,0 +1,13 @@
+id: D-31
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: "`create_job` validates `ANTHROPIC_API_KEY` is present in the worker environment before creating a job record when `_agent_image` is set. Returns HTTP 500 with actionable detail message if absent."
+rationale: Without the check, jobs submitted with container mode active but no API key fail silently inside the container. HTTP 500 (not 400) because the key is the operator's responsibility, not the client's.
+cycle_created: 1
+cycle_modified: null
+content_hash: cad78631042349e4807789b1be3be8583806613a02a1dd11820ef1daebb695f1
+token_count: 154
+file_path: .ideate/decisions/D-31.yaml

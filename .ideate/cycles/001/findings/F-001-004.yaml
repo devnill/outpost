@@ -1,0 +1,19 @@
+id: F-001-004
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: "`_handle_cancel_remote_job` fans out sequentially, not concurrently"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:977`
+  - **Issue**: When `worker_name` is not specified, the cancel handler loops over workers one at a time with `for w in workers_to_try`. In contrast, `_handle_poll_remote_job` uses `asyncio.gather` for concurrent fan-out. With N workers and a 30-second timeout each, cancellation can take up to N×30 seconds.
+  - **Impact**: The MCP tool call blocks for an extended period when the job is on the last worker in the list or when early workers are slow. This is especially acute in failure scenarios where the user is trying to abort a runaway job.
+  - **Suggested fix**: Mirror the poll handler's approach using `asyncio.gather` with a helper coroutine, then inspect the first 204 result and return it immediately.
+file_path: cycles/001/findings/F-001-004.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-001
+verdict: Fail
+content_hash: f7958cb80bace9dbb1217fd3e802b0e9a6f8df077a87eb5503b55d7efbc95f86
+token_count: 278

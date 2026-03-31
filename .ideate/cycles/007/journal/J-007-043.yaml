@@ -1,0 +1,12 @@
+id: J-007-043
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 3 — Work item 038: Bound job_queue with maxsize and HTTP 429 back-pressure"
+content: |
+  Status: complete with rework
+  Rework: 1 significant finding fixed — lifespan function now recreates job_queue with runtime-configured maxsize (was using hardcoded 1000 from module load); 1 minor finding fixed — _reset_globals fixture now resets _max_jobs before recreating job_queue in both setup and teardown.
+  42 remote-worker tests pass.
+content_hash: "8374e5c277b7e0f5231520c1f4eee22e0eebbb3de4cea1cefbc163daa11c00dc"
+token_count: 134

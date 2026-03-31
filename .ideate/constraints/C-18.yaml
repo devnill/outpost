@@ -1,0 +1,10 @@
+id: C-18
+type: constraint
+category: scope
+status: active
+description: Git Required for Diff Capture. The `git_diff` feature in remote workers requires the job workspace to be a git repository. Non-git workspaces return null for git_diff. This is documented, not enforced.
+cycle_created: 1
+cycle_modified: null
+content_hash: "9bb32ac1e070119269c3f891e31a6464bf0a189cbdb120d4bb7e983a12e1ee0b"
+token_count: 93
+file_path: .ideate/constraints/C-18.yaml

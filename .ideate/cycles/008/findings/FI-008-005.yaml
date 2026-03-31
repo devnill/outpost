@@ -1,0 +1,19 @@
+id: FI-008-005
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: minor
+title: "`_reset_globals` resets all four container vars"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:122-139`
+  - **Status**: Correctly fixed. Both the setup side (lines 128-131) and the teardown side (lines 136-139) of the `_reset_globals` fixture reset `_agent_image`, `_container_runtime`, `_container_memory`, and `_container_cpus` to their default values.
+  
+  ---
+file_path: cycles/008/findings/FI-008-005.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-048
+verdict: null
+content_hash: "674244af16a46e00d7bd4895993515063d49c7d00ca6254b931305daf35fe0f0"
+token_count: 159

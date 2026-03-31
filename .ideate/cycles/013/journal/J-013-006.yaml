@@ -1,0 +1,12 @@
+id: J-013-006
+type: journal_entry
+phase: execute
+date: "2026-03-22"
+cycle_created: 13
+title: "Work item 055: Add container mode integration test"
+content: |
+  Status: complete with rework
+  Rework: 1 significant + 1 minor finding fixed from incremental review. Changed terminal-state assertion from `in ("completed", "failed")` to `== "completed"`. Removed "cancelled" from poll predicate.
+  New test `test_container_mode_uses_docker_command_in_worker` added to mcp/test_integration.py. 9 integration tests pass.
+content_hash: "83954373223e97e129afaa04db32cbeba36f6c618ddf29255fe3e18379d2bf1e"
+token_count: 132

@@ -1,0 +1,10 @@
+id: C-09
+type: constraint
+category: design
+status: active
+description: Depth Enforcement. Maximum recursion depth (default 3) is enforced server-side. Clients cannot override this limit. Sessions at max depth cannot spawn further sessions.
+cycle_created: 1
+cycle_modified: null
+content_hash: "6fdd12eeba36025d1584315682ccb3b442face817db7b058c2deefa56d6dcbac"
+token_count: 85
+file_path: .ideate/constraints/C-09.yaml

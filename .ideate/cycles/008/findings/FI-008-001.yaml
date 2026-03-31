@@ -1,0 +1,26 @@
+id: FI-008-001
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: significant
+title: No tests exercise the container code path
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py` (entire file)
+  - **Issue**: Every test in the suite runs with `worker._agent_image = ""`. None set that variable and exercise: (a) the `docker run` command built by `_build_container_cmd`, (b) `record.container_name` being set after the cancelled guard and after `record.process`, (c) `cancel_job` calling `docker stop` when `container_name` is set, or (d) `FileNotFoundError` on the `docker` binary producing an error message that names `docker` rather than `claude`. The existing `test_run_claude_job_file_not_found_marks_job_failed` at line 1176 only validates the non-container path, and its assertion `"claude" in data["error"]` would falsely pass even if the container-mode branch were broken to emit a message that still contained the word "claude".
+  - **Impact**: AC2, AC3, AC4, AC5, AC6, and AC9 have no automated verification. The C1 and C2 fixes in the rework are correct by inspection, but a future regression in either path will not be caught by the test suite.
+  - **Suggested fix**: Add tests that set `worker._agent_image = "myimage:latest"` before exercising the job path. Minimum required coverage:
+    - `_build_container_cmd` contains `--rm`, `--name job-{id}`, `--memory`, `--cpus`, `-v {working_dir}:/workspace`, `--cwd /workspace`, `--permission-mode dangerouslySkipPermissions` (AC3, AC5).
+    - `_build_container_cmd` includes `--runtime {value}` when `worker._container_runtime` is non-empty; omits the flag otherwise (AC4).
+    - `record.container_name` equals `f"job-{record.job_id}"` after `Popen` succeeds and is `None` after job completion (AC6).
+    - `cancel_job` issues `docker stop job-{id}` when `record.container_name` is set (cancel integration).
+    - `FileNotFoundError` from `Popen` in container mode produces an error message containing `"docker"` and not `"claude CLI"` (C2 regression guard).
+  
+  ---
+file_path: cycles/008/findings/FI-008-001.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-048
+verdict: null
+content_hash: "8c73f71717b2976f2c08714610cafe3f9ecd04968cf56952613642aaac6cf8af"
+token_count: 556

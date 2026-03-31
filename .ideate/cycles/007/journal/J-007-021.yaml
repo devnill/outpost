@@ -1,0 +1,11 @@
+id: J-007-021
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 1 — Work item 029: Handle FileNotFoundError for missing claude binary"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed — remote-worker FileNotFoundError handler now sets exit_code=1 for consistency with session-spawner; test assertion added.
+content_hash: "9e9031e9266259cfa97afe61056a7c460446cb2c856e718ea2ca5631a1dd4794"
+token_count: 93

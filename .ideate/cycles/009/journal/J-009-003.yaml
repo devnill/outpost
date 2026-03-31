@@ -1,0 +1,11 @@
+id: J-009-003
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 9
+title: "Cycle 1 — Work item 045: Add session-spawner tests for NC1, NC2, CF7"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed — NC2 assertions tightened from disjunctive `or` checks to direct string assertions ("not found" and "Connection refused" must both be present).
+content_hash: bc6e1df0150ad76d4724a15630fb3187ca3f0914a6b5e1fd7d7fb2a6505ac024
+token_count: 98

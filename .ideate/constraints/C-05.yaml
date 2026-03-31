@@ -1,0 +1,10 @@
+id: C-05
+type: constraint
+category: technology
+status: active
+description: HTTP Transport for Remote Workers. Remote dispatch uses HTTP/REST, not gRPC or WebSocket. This is a deliberate constraint for simplicity and broad compatibility. Workers expose a simple REST API.
+cycle_created: 1
+cycle_modified: null
+content_hash: "88887df8a8c4197b783df8934e4ff3855111d69b498c759dbdb846e061b5d700"
+token_count: 92
+file_path: .ideate/constraints/C-05.yaml

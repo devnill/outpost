@@ -1,0 +1,18 @@
+id: F-001-009
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: "`conftest.py` files register modules under aliases that diverge from the package naming"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/conftest.py:18`, `/Users/dan/code/outpost/mcp/session-spawner/conftest.py:18`
+  - **Issue**: `remote-worker/server.py` is registered as `remote_worker_server` and `session-spawner/server.py` as `session_spawner_server`. The integration test (`test_integration.py`) imports the same files under different aliases (`remote_worker` and `session_spawner`). This means the same source file is loaded twice as two separate module objects. Mutations made to `worker_mod.job_store` in the integration test do not affect the `remote_worker_server` module object used by unit tests, which is correct isolation — but if a future test accidentally imports the wrong alias, it will see inconsistent state with no error.
+  - **Suggested fix**: Consolidate aliases: use a single name per module (e.g., `remote_worker`) in both conftest files and integration test, enforced by a single shared conftest at the `mcp/` level.
+file_path: cycles/001/findings/F-001-009.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-001
+verdict: Fail
+content_hash: "50b92f098f6e235c616578e6ff1841839829f5fe651bf800aec0b11771efa819"
+token_count: 326

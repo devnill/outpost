@@ -1,0 +1,24 @@
+id: FI-009-005
+type: finding
+cycle: 9
+reviewer: code-reviewer
+severity: significant
+title: Terminal-state assertion accepts "failed" when criterion requires "completed"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/test_integration.py:441`
+  - **Issue**: The assertion is `assert final.status in ("completed", "failed")`. The mock process always returns `returncode=0` and valid stdout. The production code at `server.py:554` sets status to `"completed"` when `exit_code == 0`. The acceptance criterion explicitly states "Asserts job reaches 'completed' status". Allowing "failed" means the test would pass even if the worker misinterpreted the zero exit code as a failure.
+  - **Impact**: A regression that causes zero-returncode jobs to be marked "failed" in container mode would not be caught by this test.
+  - **Suggested fix**: Replace line 441 with:
+    ```python
+    assert final.status == "completed", (
+        f"Expected 'completed' (mock returncode=0), got: {final.status!r}"
+    )
+    ```
+file_path: cycles/009/findings/FI-009-005.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-055
+verdict: Pass
+content_hash: "1a76cd1d7048b11de2291e6fdde8dadc72df505b8e4f764482de1ebde20ea070"
+token_count: 294

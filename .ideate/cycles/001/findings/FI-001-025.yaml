@@ -1,0 +1,17 @@
+id: FI-001-025
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: Exception repr embedded in spawn error response
+description: |
+  - **File**: `mcp/session-spawner/server.py:761`
+  - **Suggested fix**: Log exception detail; return generic "connection error" to caller. Fixed in rework.
+file_path: cycles/001/findings/FI-001-025.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-033
+verdict: Pass
+content_hash: a086ae877ada914b12cd51628a6c5bb6411f0f52e97d755c13707c007f4d702e
+token_count: 115

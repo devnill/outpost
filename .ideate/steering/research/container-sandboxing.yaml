@@ -1,0 +1,564 @@
+id: research-container-sandboxing
+type: research
+title: Container Sandboxing for AI Agent Workloads
+content: |
+  # Container Sandboxing for AI Agent Workloads
+  
+  **Research date**: 2026-03-22
+  **Scope**: Safe container sandboxing for the Outpost remote-worker daemon, which runs Claude Code (`claude --print`) as subprocesses via a FastAPI HTTP service.
+  
+  ---
+  
+  ## Context: What We Are Sandboxing
+  
+  The remote-worker (`mcp/remote-worker/server.py`) is a FastAPI daemon that:
+  
+  - Accepts HTTP jobs containing a `prompt`, `working_dir`, `permission_mode`, and `max_turns`
+  - Runs `claude --print --output-format json --permission-mode <mode> --cwd <dir> <prompt>` as a blocking subprocess via `subprocess.Popen`
+  - Captures stdout/stderr and a `git diff HEAD` from the working directory
+  - Manages up to `IDEATE_WORKER_MAX_CONCURRENCY` concurrent jobs (default 3)
+  
+  Today there is **no container isolation** around individual jobs — `claude` runs directly as a host subprocess. The goal is to wrap each job in a container so that the agent's file writes, shell commands, and network calls cannot escape into the host or affect sibling jobs.
+  
+  ---
+  
+  ## 1. Docker-in-Docker (DinD) vs. Docker-out-of-Docker (DooD)
+  
+  ### DooD: Mount the host Docker socket (`/var/run/docker.sock`)
+  
+  The daemon container gets a Docker client that talks to the **host's** Docker daemon. All containers it spawns appear on the host.
+  
+  **Security verdict: Do not use for untrusted agent workloads.**
+  
+  - Any process inside the daemon container can issue arbitrary `docker run --privileged` commands against the host daemon, gaining full root access to the host filesystem.
+  - Container escape via socket manipulation is a well-documented attack path.
+  - Images built or pulled accumulate on the host with no per-job lifecycle management.
+  
+  **When DooD is acceptable**: CI build pipelines where the executing code is your own trusted code and the environment is ephemeral (e.g., Kubernetes pod per build). It is not acceptable when the "code" is an AI agent that may be instructed by untrusted prompts.
+  
+  ### DinD: Nested Docker daemon inside the daemon container
+  
+  The daemon container runs its own `dockerd`, fully isolated from the host daemon.
+  
+  **Tradeoffs**:
+  - Requires `--privileged` on the daemon container itself, which grants the daemon container near-root access to the host kernel. This is still a significant risk, but it is one level better than DooD because job containers cannot reach the *host* daemon.
+  - Conflicts with Linux Security Modules: AppArmor and SELinux enforcement on the inner daemon is degraded.
+  - Incompatible with user namespace remapping (`userns-remap`).
+  - Operationally complex; storage driver conflicts are common.
+  
+  **When DinD is used**: Docker's own CI infra uses it but with disposable ephemeral VMs as the host, so the `--privileged` blast radius is already contained. Without that VM wrapper, DinD is not meaningfully safer than DooD for this use case.
+  
+  ### Recommended alternative: Spawn containers from the host daemon, not from inside the daemon container
+  
+  For a single-machine deployment, the cleanest approach is to run the FastAPI daemon on the **host** (not itself containerized), and have it spawn per-job containers using the host Docker daemon. This avoids both DinD and DooD entirely. If the daemon must be containerized, use a restricted socket proxy (see Section 5).
+  
+  ---
+  
+  ## 2. Container Runtime Security Options
+  
+  ### 2a. Standard runc (default Docker runtime)
+  
+  The default OCI runtime. Containers share the host kernel. Security depends entirely on: seccomp profiles, capabilities dropped, user namespaces, and AppArmor/SELinux profiles. Provides no hardware-level isolation.
+  
+  **Appropriate for**: Trusted code running in an isolated environment where you own the prompt content. The AI agent's ability to call arbitrary shell commands means you should treat it as semi-trusted and apply all hardening layers described in Section 6.
+  
+  ### 2b. gVisor (`runsc`)
+  
+  **What it is**: A user-space kernel written in Go (by Google) that intercepts all syscalls from the containerized application, reimplementing the Linux kernel interface in a sandboxed Go process ("Sentry"). The container process never directly invokes the host kernel.
+  
+  **Security model**: Even a kernel exploit inside the container cannot reach the host kernel — the attacker would need to escape the Sentry first and then escape the host process, two independent boundaries.
+  
+  **Compatibility**:
+  - Supports ~200+ Linux syscalls; most Python and Node.js applications work without changes.
+  - Claude Code is a Node.js-based CLI (`@anthropic-ai/claude-code` npm package). Node.js runs under gVisor without known issues.
+  - Python tooling (pip, venv, standard library) runs under gVisor without known issues.
+  - Tools that require kernel modules, `/proc` manipulation, raw sockets, eBPF, or `io_uring` will fail or degrade.
+  - Docker and nested container runtimes do not work inside gVisor.
+  
+  **Performance overhead**:
+  - No overhead on CPU-bound workloads (instructions execute natively).
+  - I/O overhead: 10–30% slower on filesystem-heavy workloads due to syscall interception. For AI coding agent jobs that are mostly waiting on the Anthropic API, this overhead is negligible in practice.
+  - Startup latency: milliseconds (no VM boot required).
+  
+  **How to use**:
+  ```bash
+  # Install gVisor on the host
+  curl -fsSL https://gvisor.dev/archive.key | sudo gpg --dearmor -o /usr/share/keyrings/gvisor-archive-keyring.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/gvisor-archive-keyring.gpg] https://storage.googleapis.com/gvisor/releases release main" | sudo tee /etc/apt/sources.list.d/gvisor.list
+  sudo apt-get update && sudo apt-get install -y runsc
+  sudo runsc install  # registers as Docker runtime
+  
+  # Use at job container launch
+  docker run --runtime=runsc ...
+  ```
+  
+  **Verdict for this use case**: gVisor is the recommended runtime upgrade for a single-machine deployment. It provides a second kernel boundary without the operational overhead of VMs, and the I/O overhead is acceptable for API-bound agent workloads.
+  
+  ### 2c. Rootless Docker / Rootless Podman
+  
+  **What rootless mode adds**: The Docker daemon (or Podman, which is daemonless) runs as an unprivileged user, using user namespaces internally. Container "root" maps to an unprivileged UID on the host. Even if a container escapes, the attacker gains only the privileges of the daemon's host user, not root.
+  
+  **Rootless Docker**:
+  - Not the default; requires explicit setup (`dockerd-rootless-setuptool.sh`).
+  - Feature parity with root Docker has improved; most use cases are supported.
+  - Some cgroup v1 resource limits require root; cgroup v2 (default on modern Linux) works fully rootless.
+  - Incompatible with `userns-remap` (redundant when already rootless).
+  
+  **Rootless Podman**:
+  - Rootless by default since Podman 1.0; production-ready since Podman 2.0 (2020).
+  - Daemonless: each `podman run` is a direct fork, not a long-lived privileged daemon. This eliminates the daemon as an attack surface.
+  - Drop-in compatible with Docker CLI (`alias docker=podman`).
+  - Used by default in RHEL 8+ and Fedora; production use at Red Hat and IBM.
+  - Since Podman 5.0 (2024), uses `pasta` instead of `slirp4netns` for networking, with near-native performance.
+  
+  **When rootless is sufficient**: If the code being executed is semi-trusted and you want defense-in-depth but do not need a kernel boundary, rootless + seccomp + capability drops is a reasonable posture. Combined with gVisor, you get both user-namespace isolation and kernel boundary.
+  
+  ### 2d. Kata Containers
+  
+  **What it is**: Each container runs in a dedicated lightweight VM (using QEMU, Cloud Hypervisor, or Firecracker as the VMM) with its own kernel. Fully OCI-compatible; integrates as a `containerd` runtime shim.
+  
+  **Isolation level**: Strongest available — hardware VM boundaries, dedicated kernel. A kernel exploit inside the container cannot reach the host kernel.
+  
+  **Tradeoffs**:
+  - Startup time: 150–300ms per container (VM boot), vs. milliseconds for runc/gVisor.
+  - Requires nested virtualization if the host is itself a VM (common on cloud VMs; requires `vmx`/`svm` CPU flags to be exposed). Many cloud instance types support this; check your provider.
+  - Memory overhead: a dedicated kernel per container (~50–100MB baseline).
+  - Incompatible with `--network host`, `--pid host`, and some other host-namespace flags.
+  - `docker` commands inside a Kata container do not work (no nested Docker daemon).
+  
+  **When to choose Kata**: Multi-tenant SaaS where customers submit arbitrary code, or where regulatory compliance requires VM-level isolation. For a single-operator deployment running your own jobs, the overhead is likely not justified versus gVisor.
+  
+  ### 2e. Seccomp Profiles
+  
+  Docker's default seccomp profile **blocks approximately 44 out of 300+ syscalls**, including known escape vectors:
+  - `keyctl`, `add_key`, `request_key` (kernel keyring)
+  - `bpf`, `perf_event_open` (eBPF and performance counters)
+  - `clone` with `CLONE_NEWUSER` (user namespace creation from inside the container)
+  - `ptrace` (process tracing)
+  - `mount`, `umount2` (filesystem manipulation)
+  - `pivot_root`, `chroot`
+  - `unshare` (used in CVE-2022-0185)
+  
+  The default profile is applied to all containers unless `--security-opt seccomp=unconfined` is passed. **Never pass `seccomp=unconfined` to job containers.**
+  
+  For tighter profiles, generate a custom allowlist for the specific tools the agent uses and block everything else. Tools like `docker-slim` can profile running containers to generate minimal seccomp profiles.
+  
+  ### 2f. AppArmor / SELinux
+  
+  Docker's default AppArmor profile (`docker-default`) restricts mounts, raw sockets, and some privilege operations. Enabled automatically if AppArmor is available on the host (Ubuntu/Debian). SELinux performs equivalent enforcement on RHEL/Fedora.
+  
+  These are complementary to seccomp (seccomp restricts which syscalls can be called; AppArmor restricts what resources can be accessed via allowed syscalls). Both should be left enabled.
+  
+  ### 2g. User Namespaces (`userns-remap`)
+  
+  Remaps UID 0 inside the container to an unprivileged UID range on the host (e.g., UID 100000–165535). Mitigates container breakout via exploiting the equivalence of container root = host root.
+  
+  **Benefits**: Strong mitigation for privilege escalation; if a container escapes, the attacker has no host root privileges.
+  
+  **Limitations**:
+  - Daemon-wide setting; all containers on the daemon get remapped.
+  - Incompatible with DinD and `--privileged` containers.
+  - Incompatible with rootless Docker (redundant).
+  - Requires bind mounts to be owned by the remapped UID range (working directory ownership must be set up correctly).
+  - Masks existing `/var/lib/docker` image cache; best enabled on a fresh install.
+  
+  **Verdict**: Useful defense-in-depth layer. If rootless Podman is used, this is already provided implicitly. If root Docker is used, enabling `userns-remap` is recommended.
+  
+  ---
+  
+  ## 3. Network Isolation
+  
+  ### Fully airgapped containers
+  
+  ```bash
+  docker run --network none ...
+  ```
+  
+  `--network none` gives the container a loopback interface only. No external connectivity whatsoever. This is the safest default for jobs that only need to write files.
+  
+  **Problem**: Claude Code calls the Anthropic API (`api.anthropic.com`). A container with `--network none` cannot make these calls; the `claude` process will fail immediately.
+  
+  ### Allow only specific outbound connections
+  
+  **Option A: Custom bridge network with `internal: true` + a proxy sidecar**
+  
+  Create an internal Docker network (no host gateway). Add a proxy container (e.g., Squid, Envoy, or a custom HTTP proxy) that is attached to both the internal network and an external network. The agent container routes all traffic through the proxy; the proxy allows only `api.anthropic.com:443`.
+  
+  ```bash
+  # Create internal-only network
+  docker network create --internal agent-internal
+  
+  # Run proxy (attached to both networks)
+  docker run -d --name agent-proxy \
+    --network bridge \          # can reach internet
+    agent-proxy-image
+  
+  docker network connect agent-internal agent-proxy
+  
+  # Run job container (internal only, proxy via env vars)
+  docker run --network agent-internal \
+    -e HTTPS_PROXY=http://agent-proxy:3128 \
+    -e NO_PROXY=localhost,127.0.0.1 \
+    job-image
+  ```
+  
+  **Option B: `--network none` with host-side forwarding**
+  
+  Use a user-space proxy (e.g., `socat` or `nfqueue`-based tool) on the host that proxies only `api.anthropic.com`. Configure `HTTPS_PROXY` in the container pointing to the host. Complex but gives fine-grained control.
+  
+  **Option C: iptables DOCKER-USER rules**
+  
+  Insert rules into the `DOCKER-USER` iptables chain (the Docker-recommended place for custom rules) to block all outbound traffic except to the Anthropic API IP ranges. Fragile because IP ranges change; prefer the proxy approach.
+  
+  **Option D: Docker network `--driver` with firewall plugin**
+  
+  Tools like SPR (Secure Private Router) or commercial solutions provide per-container network policies. Overkill for a single-machine deployment.
+  
+  ### Recommended pattern for this use case
+  
+  Use a custom internal bridge network + a minimal allowlist proxy for `api.anthropic.com` and (optionally) `registry.npmjs.org` / `pypi.org` if the agent needs to install packages during jobs. Everything else is blocked.
+  
+  If you can tolerate jobs that only use a pre-installed `claude` binary and pre-installed tools (no runtime package installs), `--network none` with a pre-authenticated `ANTHROPIC_API_KEY` credential that the proxy passes through is the cleanest option.
+  
+  ---
+  
+  ## 4. Resource Limits
+  
+  ### Flags
+  
+  ```bash
+  docker run \
+    --memory 4g \               # hard memory limit; OOM kills process on breach
+    --memory-swap 4g \          # set equal to --memory to disable swap
+    --cpus 2 \                  # limit to 2 CPU cores (CFS quota)
+    --pids-limit 512 \          # max number of processes/threads in the container
+    --ulimit nofile=1024:1024 \ # open file descriptor limit
+    --ulimit nproc=512:512 \    # user process limit (redundant with --pids-limit but belt+suspenders)
+    ...
+  ```
+  
+  ### OOM behavior
+  
+  When a container exceeds its memory limit:
+  1. The Linux OOM killer is invoked **inside** the container's cgroup. It kills the process with the highest OOM score, which is typically the main process (the `claude` CLI in our case).
+  2. The container exits with code 137 (SIGKILL).
+  3. The subprocess.Popen in the remote-worker will return exit code 137, which the worker records as a failed job with `exit_code=137`.
+  4. The host Docker daemon is **not** killed; only the container is affected.
+  5. The remote-worker daemon continues running and processes the next queued job.
+  
+  This is a clean failure from the daemon's perspective. The `_process_job` function already handles non-zero exit codes correctly.
+  
+  **Important**: Set `--memory-swap` equal to `--memory` (or to `-1` to disable swap entirely) to prevent the container from silently swapping and consuming host swap space during memory pressure.
+  
+  ### CPU over-commitment
+  
+  `--cpus` uses CFS (Completely Fair Scheduler) quotas. If multiple jobs run concurrently and each is allocated 2 CPUs on a 4-core host, they will compete. CPU is a soft ceiling under the CFS model; it is not guaranteed to be enforced instantly but is enforced over the CFS period (100ms by default).
+  
+  ### Recommended limits for Claude Code jobs
+  
+  ```bash
+  --memory 4g \
+  --memory-swap 4g \
+  --cpus 2 \
+  --pids-limit 512 \
+  --ulimit nofile=4096:4096
+  ```
+  
+  Adjust based on the types of tasks being delegated. Code compilation or npm installs may require more memory.
+  
+  ---
+  
+  ## 5. The Daemon Itself Being Containerized
+  
+  There are three options for running the FastAPI daemon in a container while still spawning per-job containers.
+  
+  ### Option A: DooD — Mount host Docker socket into the daemon container
+  
+  ```dockerfile
+  # docker run -v /var/run/docker.sock:/var/run/docker.sock daemon-image
+  ```
+  
+  The daemon container calls the host Docker daemon to spawn job containers.
+  
+  **Security analysis**:
+  - The daemon container has full control of the host Docker daemon.
+  - Any compromise of the daemon (e.g., a malicious job that escapes its container and reaches the daemon) grants full host root access via the socket.
+  - The daemon's `IDEATE_WORKER_BASE_DIR` path validation is the only guard against working directory traversal; this runs host-side so it must be validated carefully.
+  
+  **When acceptable**: If the daemon process itself is trusted (you wrote it and it does not execute untrusted code directly), and you have other host-level hardening (SELinux, AppArmor on the socket), and the deployment is on a dedicated machine not shared with other tenants.
+  
+  **Recommended mitigation if using DooD**: Use a **Docker socket proxy** (e.g., `Tecnativa/docker-socket-proxy`) to expose only the specific Docker API endpoints the daemon needs (create, inspect, kill containers) and block destructive host-wide operations (delete images, network manipulation, etc.).
+  
+  ### Option B: DinD — Daemon container runs its own nested `dockerd`
+  
+  The daemon container uses `--privileged` and starts an inner `dockerd`. Job containers are spawned by the inner daemon.
+  
+  **Security analysis**:
+  - Requires `--privileged` on the daemon container — essentially the same attack surface as DooD, but for the inner daemon rather than the host daemon.
+  - AppArmor and SELinux enforcement on inner containers is degraded.
+  - If the daemon container itself is compromised via `--privileged`, the attacker has host root.
+  
+  **Verdict**: Marginally better isolation for job containers (they cannot reach the host daemon), but the daemon container itself requires `--privileged`. Not recommended unless the daemon container runs inside a VM (then `--privileged` blast radius is the VM, not the bare-metal host).
+  
+  ### Option C: Orchestrator-managed — Kubernetes or Nomad
+  
+  An orchestrator receives job requests and manages container lifecycle. The FastAPI daemon becomes a lightweight job dispatcher, not a container launcher itself.
+  
+  **Security benefits**:
+  - Daemon does not need access to Docker socket.
+  - Job containers are provisioned by the orchestrator with consistent resource limits and security policies.
+  - Kubernetes supports gVisor via `RuntimeClass`, Kata Containers via `RuntimeClass`, and per-namespace network policies natively.
+  
+  **Tradeoffs**:
+  - Significant operational overhead for a single-machine deployment.
+  - Kubernetes minimum viable install (k3s or minikube) adds meaningful complexity.
+  - Recommended for multi-machine or production-at-scale deployments.
+  
+  ### Recommended approach for single-machine deployment
+  
+  **Run the daemon on the host (not containerized), spawn job containers via the host Docker daemon.**
+  
+  This eliminates the DooD/DinD dilemma entirely. The daemon runs as a restricted host user (not root), calls `docker run` (or the Docker SDK) for each job, and job containers run with the hardening described in Section 6. The daemon's API key authentication, working directory validation, and concurrency limits remain unchanged.
+  
+  If the daemon must be containerized (e.g., for deployment consistency), use DooD with a socket proxy as a constrained alternative.
+  
+  ---
+  
+  ## 6. AI Agent Workload Specifics
+  
+  ### What Claude Code does inside a container
+  
+  - Writes files to `--cwd` (the working directory)
+  - Runs shell commands via bash subprocesses
+  - Calls `api.anthropic.com` for model completions
+  - May run `git` commands (`git diff`, `git add`, `git commit`)
+  - May install npm/Python packages if instructed by the prompt
+  - With `--dangerously-skip-permissions`, skips all interactive permission prompts
+  
+  ### Container configuration to allow file writes while preventing escape
+  
+  ```bash
+  docker run \
+    # --- Runtime ---
+    --runtime=runsc \                           # gVisor: second kernel boundary
+    \
+    # --- Identity ---
+    --user 1000:1000 \                          # non-root UID inside container
+    \
+    # --- Filesystem ---
+    -v /jobs/${JOB_ID}/workspace:/workspace \   # job-specific working dir, writable
+    -v /home/node/.claude:/home/node/.claude:ro \  # claude credentials, read-only
+    --tmpfs /tmp:size=512m,noexec \             # writable temp space, no exec bit
+    \
+    # --- Network ---
+    --network agent-internal \                  # internal network via proxy only
+    \
+    # --- Capabilities ---
+    --cap-drop ALL \                            # drop all Linux capabilities
+    --cap-add CHOWN \                           # needed for npm installs creating files
+    --cap-add SETUID \                          # needed for some tools (add only if required)
+    --cap-add SETGID \                          # same
+    \
+    # --- Security options ---
+    --security-opt no-new-privileges \          # prevent setuid/setgid escalation
+    --security-opt seccomp=./claude-seccomp.json \  # custom or default seccomp
+    \
+    # --- Resource limits ---
+    --memory 4g \
+    --memory-swap 4g \
+    --cpus 2 \
+    --pids-limit 512 \
+    --ulimit nofile=4096:4096 \
+    \
+    # --- Lifecycle ---
+    --rm \                                      # auto-remove on exit
+    --name "job-${JOB_ID}" \
+    \
+    outpost-agent:latest \
+    claude --print --output-format json \
+      --permission-mode dangerouslySkipPermissions \
+      --max-turns 30 \
+      --cwd /workspace \
+      "$PROMPT"
+  ```
+  
+  **Key principle**: The working directory is a per-job bind mount from a host-side path that is created fresh for each job and removed after result collection. The container writes to `/workspace`; the host reads results from the bind-mounted host path.
+  
+  ### Preventing escape via the working directory
+  
+  - Do **not** mount sensitive host directories into the container (`.ssh`, `.aws`, `~/.claude` unless read-only credentials are needed).
+  - Use a per-job ephemeral directory on the host (`/jobs/<uuid>/workspace`); clean up after the job.
+  - The `IDEATE_WORKER_BASE_DIR` validation in `server.py` prevents directory traversal in the HTTP API, but once inside the container the agent is constrained by the bind mount and `--cap-drop ALL`.
+  
+  ### Published reference implementations
+  
+  1. **Anthropic official devcontainer** (`anthropics/claude-code/.devcontainer/Dockerfile`):
+     - Base: `node:20`
+     - Installs: `iptables`, `ipset`, `iproute2` for a firewall script (`init-firewall.sh`) that restricts outbound connections
+     - Runs as non-root user `node`
+     - Claude CLI installed via `npm install -g @anthropic-ai/claude-code`
+     - This is the authoritative reference for a Claude Code container image
+  
+  2. **Docker Sandboxes** (`docker sandbox run`):
+     - Uses microVM isolation (hardware-level boundary)
+     - Template image: `docker/sandbox-templates:claude-code`
+     - Supports `--dangerously-skip-permissions` by default within the sandbox
+     - Network isolation via allow/deny list
+     - Not a general-purpose API; requires the Docker Sandboxes product
+  
+  3. **Community**: `github.com/textcortex/claude-code-sandbox` and `github.com/RchGrav/claudebox` — community implementations, not audited.
+  
+  4. **Anthropic sandbox-runtime**: `npx @anthropic-ai/sandbox-runtime <command>` — an open-source npm package that applies bubblewrap (Linux) or Seatbelt (macOS) sandbox primitives directly. Can sandbox the `claude` process without a container, using OS-level filesystem and network isolation. Lighter weight than a full container but no separate kernel.
+  
+  ### Minimum viable secure configuration
+  
+  The smallest set of changes that meaningfully improve security over running `claude` as a bare subprocess:
+  
+  ```bash
+  docker run --rm \
+    --network none \                           # if Anthropic API key is pre-passed and API is proxied
+    --user 1000:1000 \
+    --cap-drop ALL \
+    --security-opt no-new-privileges \
+    --memory 4g --memory-swap 4g \
+    --cpus 2 --pids-limit 512 \
+    -v /jobs/${JOB_ID}:/workspace \
+    -e ANTHROPIC_API_KEY="$KEY" \
+    outpost-agent:latest \
+    claude --print --output-format json \
+      --permission-mode dangerouslySkipPermissions \
+      --max-turns 30 --cwd /workspace "$PROMPT"
+  ```
+  
+  This does not require gVisor installation, network proxy setup, or capability analysis. It is a starting point, not an endpoint.
+  
+  ---
+  
+  ## 7. Practical Base Images
+  
+  ### Official / Published
+  
+  | Image | Base | Claude CLI | Notes |
+  |---|---|---|---|
+  | `anthropics/claude-code` devcontainer | `node:20` | `npm install -g @anthropic-ai/claude-code` | Official reference; includes firewall script, git, gh CLI |
+  | `docker/sandbox-templates:claude-code` | Unknown (proprietary) | Pre-installed | Requires Docker Sandboxes product; not usable standalone |
+  | `node:20-slim` (DIY) | Debian slim | Install via npm | Smallest footprint for custom build |
+  | `node:20-bookworm` (DIY) | Debian bookworm | Install via npm | Full Debian; easier tool installation |
+  
+  ### There is no published standalone Anthropic container image for `claude` CLI.
+  
+  The CLI is distributed as an npm package (`@anthropic-ai/claude-code`) and must be installed into a base Node.js image. The official approach is to build your own image following the devcontainer pattern.
+  
+  ### Recommended Dockerfile for Outpost
+  
+  ```dockerfile
+  FROM node:20-bookworm-slim
+  
+  # Install minimal runtime tools
+  RUN apt-get update && apt-get install -y --no-install-recommends \
+      git \
+      ca-certificates \
+      curl \
+    && rm -rf /var/lib/apt/lists/*
+  
+  # Install Claude Code CLI as root, then lock down
+  RUN npm install -g @anthropic-ai/claude-code@latest
+  
+  # Create non-root user
+  RUN useradd -m -u 1000 -s /bin/bash agent
+  RUN mkdir -p /workspace && chown agent:agent /workspace
+  
+  USER agent
+  WORKDIR /workspace
+  
+  # The prompt is passed as an argument at runtime
+  ENTRYPOINT ["claude", "--print", "--output-format", "json"]
+  ```
+  
+  Build with: `docker build -t outpost-agent:latest .`
+  
+  ---
+  
+  ## Recommended Approach
+  
+  ### For a single-machine deployment today
+  
+  **Tier 1 (minimum viable, implement first)**:
+  1. Run each job inside a standard Docker container (runc runtime).
+  2. Use a per-job ephemeral bind mount for the working directory.
+  3. Apply: `--user 1000:1000`, `--cap-drop ALL`, `--security-opt no-new-privileges`, `--memory 4g --memory-swap 4g`, `--cpus 2`, `--pids-limit 512`, `--rm`.
+  4. Use a custom internal Docker network + minimal proxy allowing only `api.anthropic.com:443` outbound.
+  5. Base image: `node:20-bookworm-slim` with Claude CLI installed.
+  
+  **Tier 2 (strong isolation, add next)**:
+  6. Install gVisor and use `--runtime=runsc` for job containers. This adds a second kernel boundary with negligible overhead for API-bound workloads.
+  7. Enable `userns-remap` on the Docker daemon (or switch to rootless Podman) so that container root maps to an unprivileged UID on the host.
+  
+  **Tier 3 (production hardening)**:
+  8. Generate a custom seccomp profile for the `claude` CLI workload using container profiling tools.
+  9. Add per-job container label/namespace isolation and automatic cleanup.
+  10. Switch to Kata Containers if the deployment moves to a multi-tenant environment or a cloud VM with nested virtualization support.
+  
+  ### Run the daemon on the host (not containerized) for the initial implementation
+  
+  Avoid the DooD/DinD problem. The FastAPI daemon calls `docker run` (via subprocess or Docker SDK for Python) to launch each job container. This is architecturally clean and keeps the daemon's resource footprint small.
+  
+  ### Do not use DooD in production without a socket proxy
+  
+  If the daemon must be containerized, use `Tecnativa/docker-socket-proxy` to restrict the API surface exposed through the socket.
+  
+  ---
+  
+  ## Tradeoffs Accepted in the Recommended Approach
+  
+  | Decision | Tradeoff |
+  |---|---|
+  | runc as baseline (not Kata) | Single kernel; a kernel exploit inside the container can theoretically reach the host. Mitigated by gVisor (Tier 2). |
+  | Daemon runs on host | Daemon process must be hardened and run as a non-root user with minimal permissions. |
+  | Per-job bind mount | Host must manage directory lifecycle; orphaned directories on daemon crash must be cleaned up. |
+  | Allowlist proxy for API | Proxy is a single point of failure; if it goes down, all jobs fail. Use health checks and auto-restart. |
+  | `--dangerously-skip-permissions` inside container | Necessary for unattended operation; mitigated by container boundaries replacing interactive permission checks. |
+  
+  ---
+  
+  ## What to Research Further
+  
+  1. **`@anthropic-ai/sandbox-runtime`**: The open-source npm package from Anthropic that wraps `claude` with bubblewrap (Linux) or Seatbelt (macOS) sandbox primitives. This could be used *inside* the container to add an additional OS-level boundary around the claude process, complementing the container boundary. Source: https://github.com/anthropic-experimental/sandbox-runtime
+  
+  2. **Docker SDK for Python vs. subprocess**: Replace `subprocess.Popen(["docker", "run", ...])` with the `docker` Python SDK for better lifecycle management, streaming log capture, and container cleanup on daemon restart.
+  
+  3. **gVisor compatibility with `claude` CLI**: Validate that `claude --print` runs correctly under `runsc` before committing to gVisor in production. The main risk areas are: Node.js filesystem watchers (`inotify` — used by `watchman`; gVisor supports `inotify`), and any native npm addons.
+  
+  4. **Anthropic `init-firewall.sh`**: Inspect the firewall script in `anthropics/claude-code/.devcontainer/` to understand the exact iptables rules Anthropic uses in their own devcontainer. This is the best available reference for what network access `claude` requires at runtime.
+  
+  5. **Kata Containers with Cloud Hypervisor**: If the deployment host is a bare-metal machine (not a nested VM), Kata Containers with Cloud Hypervisor VMM provides startup times of ~150ms and near-native I/O performance, which may be acceptable for long-running agent jobs.
+  
+  6. **Resource limits tuning**: Profile actual `claude --print` jobs to measure peak memory consumption and CPU usage. The 4GB/2CPU defaults above are conservative estimates; tune based on empirical data.
+  
+  ---
+  
+  ## Sources
+  
+  - [Docker-in-Docker vs DooD — nixknight.com](https://www.nixknight.com/2022/01/dind-vs-dood/)
+  - [Why Is Running Docker Inside Docker Not Recommended — Baeldung](https://www.baeldung.com/ops/docker-in-docker)
+  - [Secure DinD with System Containers — Nestybox](https://blog.nestybox.com/2019/09/14/dind.html)
+  - [gVisor official documentation](https://gvisor.dev/docs/)
+  - [gVisor performance guide](https://gvisor.dev/docs/architecture_guide/performance/)
+  - [Kata Containers vs Firecracker vs gVisor — Northflank](https://northflank.com/blog/kata-containers-vs-firecracker-vs-gvisor)
+  - [Choosing a workspace for AI agents: gVisor, Kata, Firecracker — DEV Community](https://dev.to/agentsphere/choosing-a-workspace-for-ai-agents-the-ultimate-showdown-between-gvisor-kata-and-firecracker-b10)
+  - [Rootless Docker and Podman security comparison — introserv.com](https://introserv.com/blog/container-security-is-isolation-absolute-docker-vs.-rootless-podman/)
+  - [Podman vs Docker 2025 — uptrace.dev](https://uptrace.dev/comparisons/podman-vs-docker)
+  - [Docker: Isolate containers with a user namespace — Docker Docs](https://docs.docker.com/engine/security/userns-remap/)
+  - [Seccomp security profiles for Docker — Docker Docs](https://docs.docker.com/engine/security/seccomp/)
+  - [Docker resource constraints — Docker Docs](https://docs.docker.com/engine/containers/resource_constraints/)
+  - [Docker packet filtering and firewalls — Docker Docs](https://docs.docker.com/engine/network/packet-filtering-firewalls/)
+  - [OWASP Docker Security Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html)
+  - [Docker Sandboxes for Claude Code — Docker Blog](https://www.docker.com/blog/docker-sandboxes-run-claude-code-and-other-coding-agents-unsupervised-but-safely/)
+  - [Claude Code sandbox — Docker Docs](https://docs.docker.com/ai/sandboxes/agents/claude-code/)
+  - [Claude Code sandboxing — Anthropic Docs](https://code.claude.com/docs/en/sandboxing)
+  - [Anthropic claude-code devcontainer Dockerfile — GitHub](https://github.com/anthropics/claude-code/blob/main/.devcontainer/Dockerfile)
+  - [Sandboxing AI Coding Agents — mfyz.com](https://mfyz.com/ai-coding-agent-sandbox-container/)
+  - [Restrict outbound traffic on Docker infrastructure — fruty.io](https://fruty.io/2021/02/15/how-to-restrict-outbound-traffic-on-a-docker-infrastructure/)
+  - [Container Security fundamentals: seccomp — Datadog Security Labs](https://securitylabs.datadoghq.com/articles/container-security-fundamentals-part-6/)
+content_hash: "3c581fe72d1788f8cc9b0ea11c06cc55911fb42bf2f39ee431486b2a208205a5"
+token_count: 8277

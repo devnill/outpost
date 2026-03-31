@@ -1,0 +1,18 @@
+id: FI-005-013
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: minor
+title: Session-spawner test calls helper directly instead of exercising `main()`
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/test_server.py:1981-1987`
+  - **Issue**: `test_startup_warns_when_worker_has_no_api_key` calls `spawner._warn_missing_worker_keys` directly with a hand-crafted list. It verifies the helper function in isolation but does not verify that `main()` actually invokes the helper when `OUTPOST_REMOTE_WORKERS` contains a worker without an `api_key`. If the call site at `server.py:1156` were accidentally deleted or guarded incorrectly, this test would still pass.
+  - **Suggested fix**: Add a second test that patches `OUTPOST_REMOTE_WORKERS` with a JSON worker entry that has no `api_key`, calls `spawner.main()` (or mocks the `stdio_server` so it returns immediately), and asserts the warning appears in `caplog`. The existing isolated unit test is worth keeping for documentation, but the integration path should also be covered.
+file_path: cycles/005/findings/FI-005-013.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-022
+verdict: Pass
+content_hash: "6f7e3b390b39bac0f86006f10016ad7085b13110dbd4836c7917ec5db6dc6aad"
+token_count: 303

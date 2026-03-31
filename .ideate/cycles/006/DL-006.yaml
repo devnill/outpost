@@ -1,0 +1,58 @@
+id: DL-006
+type: decision_log
+cycle: 6
+content: |
+  # Decision Log — Cycle 6
+  
+  **Produced**: 2026-03-21
+  **Scope**: WI-025, WI-026, WI-027 — refinement cycle addressing cycle 5 significant findings SG1 and SG2
+  **Work Items Completed**: 3 (025–027)
+  **Final Verdict**: Pass — 121 tests pass; all cycle 5 open questions resolved; no critical or significant findings
+  
+  ## Decisions
+  
+  ### D-025: Fix Integration Tests to Exercise MCP Tool Layer
+  Tests 2 and 3 in `mcp/test_integration.py` were replaced. Prior implementations called the remote-worker HTTP API directly. Replacements call `spawner_mod._handle_poll_remote_job` and `spawner_mod._handle_cancel_remote_job` against the in-process worker, exercising the session-spawner fan-out logic end-to-end. All 5 integration tests pass. Closes OQ-012.
+  
+  ### D-026: Documentation Sweep
+  - `mcp/session-spawner/README.md` lines 73, 252, and 277 updated to describe `token_usage` as always present with null value. Stale "omitted from response" at line 252 required rework during incremental review. Closes OQ-013.
+  - `cancel_remote_job` added to architecture.md component map and session-spawner README tool list. Closes OQ-014.
+  - `IDEATE_WORKER_MAX_JOBS` added to remote-worker README env var table. Closes OQ-015.
+  - `max_jobs` added to architecture.md health endpoint schema. Closes OQ-016.
+  - `architecture.md` Section 8 configuration env var table was not in scope; `IDEATE_WORKER_MAX_JOBS` still absent from it (OQ-020).
+  
+  ### D-027: Minor Code Hygiene
+  - Empty `__init__.py` added to both test directories — `pytest mcp/` now works. Closes OQ-017.
+  - `_evict_terminal_jobs_locked` lock precondition merged into docstring. Closes OQ-018.
+  - `_max_jobs` reset to 1000 added to `worker_server` fixture teardown. Closes OQ-019.
+  - `sys.modules["server"]` key collision in conftests identified but not addressed. Carries forward as OQ-021.
+  
+  ## Open Questions
+  
+  ### OQ-020: IDEATE_WORKER_MAX_JOBS absent from architecture.md Section 8 env var table
+  - Source: gap-analysis MG1
+  - Fix: single-row table addition; no design decision required.
+  
+  ### OQ-021: Both conftest.py files register under sys.modules["server"]
+  - Source: code-quality M1, gap-analysis MG2
+  - Risk: a future `import server` in either test file would silently import the wrong module.
+  - Fix: rename keys to `sys.modules["remote_worker_server"]` / `sys.modules["session_spawner_server"]`.
+  
+  ## Resolved Questions (Cycle 6)
+  
+  | OQ | Resolution | WI |
+  |----|-----------|-----|
+  | OQ-012: Integration tests bypass MCP tool layer | Fixed — Tests 2 and 3 replaced with MCP handler calls | 025 |
+  | OQ-013: README token_usage contract contradicts implementation | Fixed — lines 73, 252, 277 corrected | 026 |
+  | OQ-014: cancel_remote_job absent from architecture/README | Fixed — added to both | 026 |
+  | OQ-015: IDEATE_WORKER_MAX_JOBS absent from remote-worker README | Fixed — row added | 026 |
+  | OQ-016: architecture.md health schema missing max_jobs | Fixed — field added | 026 |
+  | OQ-017: pytest mcp/ fails — no __init__.py | Fixed — empty __init__.py added | 027 |
+  | OQ-018: _evict_terminal_jobs_locked has no lock comment | Fixed — merged into docstring | 027 |
+  | OQ-019: worker_server fixture doesn't reset _max_jobs | Fixed — reset added | 027 |
+  
+  ## Cross-References
+  
+  **CR1**: code-quality M1 and gap-analysis MG2 are the same finding (conftest sys.modules collision). Independently identified by two reviewers. Both flag latent future-maintenance risk; neither reports a current test failure. Combined as OQ-021.
+content_hash: "7ec5f1ecf550c41039c514cdea16d9319cd200cb4d1b009b931e5c0aeb8ebe1f"
+token_count: 892

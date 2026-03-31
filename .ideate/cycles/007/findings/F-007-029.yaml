@@ -1,0 +1,18 @@
+id: F-007-029
+type: finding
+cycle: 7
+reviewer: code-reviewer
+severity: minor
+title: conftest.py sys.modules["server"] collision risk
+description: |
+  - **File**: `mcp/session-spawner/test_server.py` (conftest fixture) and `mcp/remote-worker/test_server.py` (conftest fixture)
+  - **Issue**: Both test files register their respective server module under `sys.modules["server"]`. If both test suites are collected in the same pytest session (e.g., `pytest` run from the repo root), the second registration silently overwrites the first. Tests that import `server` after both modules are registered will resolve whichever was loaded last, producing incorrect test behavior that may be intermittent depending on collection order. No current failure because the two test files are in separate directories and are typically run independently.
+  - **Suggested fix**: Register each module under a distinct key (`sys.modules["session_spawner_server"]` and `sys.modules["remote_worker_server"]`), and update imports in the respective test files to match.
+file_path: cycles/007/findings/F-007-029.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-007
+verdict: null
+content_hash: e179e53f419039466f7e9cbf8d5e7c25d5f01df205c0441b7c4041ba4a2ccd16
+token_count: 301

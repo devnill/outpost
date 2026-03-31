@@ -1,0 +1,13 @@
+id: D-18
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 4
+supersedes: null
+description: "After role resolution in `_handle_spawn_remote_session`, prepend the resolved role's `system_prompt` to `payload[\"prompt\"]` using the same `[ROLE: {label}]\\n{system_prompt}\\n\\n{prompt}` pattern used in local `spawn_session`. The `spawn_remote_session` schema was also updated to accept inline role dicts (`oneOf [string, object]`)."
+rationale: "Cycle 4 critical finding (CG1): `allowed_tools` and `permission_mode` were propagated by WI-015, but `system_prompt` was not. Roles like `reviewer`, `manager`, and `proxy-human` express behavioral contracts primarily through system_prompt. Omission silently degraded role guarantees for remote sessions."
+cycle_created: 1
+cycle_modified: null
+content_hash: "2e7b5f1f1af40cd8ed50a7707338b0ada171040ab2e93bf1c4310b5663fc16df"
+token_count: 216
+file_path: .ideate/decisions/D-18.yaml

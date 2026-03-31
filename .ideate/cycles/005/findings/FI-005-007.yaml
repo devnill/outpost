@@ -1,0 +1,19 @@
+id: FI-005-007
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: significant
+title: "`_max_jobs` is only initialized during lifespan; tests bypass lifespan and directly mutate `worker._max_jobs`"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:874,919`
+  - **Issue**: The two new eviction tests set `worker._max_jobs = 2` and `worker._max_jobs = 1` directly, bypassing the lifespan startup that reads `IDEATE_WORKER_MAX_JOBS` from the environment. There is no test that verifies the env var is read correctly at startup — the only startup path coverage is via direct attribute mutation. This means the `ValueError` fallback branch at `server.py:91-92` is untested, and the integration between env var and the startup function is unverified.
+  - **Impact**: A regression in the env var parsing (e.g., the env var name being changed, or the `int()` conversion being moved) would not be caught by any test.
+  - **Suggested fix**: Add a test that sets `IDEATE_WORKER_MAX_JOBS` to a valid integer and a non-integer string in the environment, starts the lifespan, and asserts `worker._max_jobs` is set to the expected value. This requires using `AsyncClient` with `lifespan="auto"` or manually invoking the lifespan context manager.
+file_path: cycles/005/findings/FI-005-007.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-020
+verdict: Pass
+content_hash: a1c8e40858008ee303a806bc8c313e2c0583b5a3772581bc36eac3e8507e39aa
+token_count: 356

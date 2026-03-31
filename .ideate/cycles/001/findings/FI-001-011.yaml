@@ -1,0 +1,19 @@
+id: FI-001-011
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: Concurrency test spin-loop races against job_store status
+description: |
+  - **File**: `mcp/remote-worker/test_server.py:477`
+  - **Issue**: The spin-loop waits on `started_count` (incremented when `asyncio.to_thread` is called) but the health assertion reads `status == "running"` from `job_store`. The two conditions are not synchronized — a job could have incremented `started_count` before the `_worker` coroutine updates `record.status = "running"`.
+  - **Impact**: Occasional race condition causing the assertion `active_jobs == max_concurrency` to fail.
+  - **Suggested fix**: Poll the health endpoint directly in the spin-loop. Fixed in rework.
+file_path: cycles/001/findings/FI-001-011.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-031
+verdict: Pass
+content_hash: "73ad32103168149b3229a7b6fb529432bc5e06e09072c224cd1f9daf714dd9fd"
+token_count: 224

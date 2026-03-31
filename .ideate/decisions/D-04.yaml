@@ -1,0 +1,13 @@
+id: D-04
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: When a session exceeds its timeout, the process is terminated with SIGKILL and partial output is returned.
+rationale: SIGTERM could be ignored by the subprocess. SIGKILL guarantees termination.
+cycle_created: 1
+cycle_modified: null
+content_hash: "5acc0504c6d85749b10f0d065fa23895773ba86c2281b2e829afca1cc0238da7"
+token_count: 102
+file_path: .ideate/decisions/D-04.yaml

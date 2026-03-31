@@ -1,0 +1,56 @@
+id: overview
+type: overview
+title: Change Plan — Cycle 9
+content: |
+  # Change Plan — Cycle 9
+  
+  ## Trigger
+  
+  Cycle 8 capstone review (2026-03-22). Four significant findings plus one architect observation require fixes before container mode is safe for production deployment.
+  
+  ## What Is Changing
+  
+  ### Code (mcp/remote-worker/server.py)
+  1. **ANTHROPIC_API_KEY secret exposure** (S1): `_build_container_cmd` currently passes the key value as `-e ANTHROPIC_API_KEY={value}`, embedding it in the process command line visible via `ps aux`. Fix: use `-e ANTHROPIC_API_KEY` (name-only — Docker inherits from host env without embedding in cmdline).
+  2. **ANTHROPIC_API_KEY pre-flight check** (M2): `create_job` does not validate that `ANTHROPIC_API_KEY` is set when container mode is active. Add a 500 check at job submission time so operators get an actionable error immediately rather than silent job failures inside containers.
+  3. **Blocking docker stop in async event loop** (AO1): `cancel_job` calls `subprocess.run(["docker", "stop", ...])` synchronously on the async event loop, blocking for up to 15s. Fix: wrap in `asyncio.to_thread`.
+  4. **Missing eviction call in cancel-while-starting path** (M1): `_process_job`'s `result is None` branch does not call `_evict_terminal_jobs_locked()`, unlike every other terminal path. One-line addition.
+  
+  ### Documentation (mcp/remote-worker/README.md)
+  5. **Remote-worker README missing container mode** (DG1): Env var table missing all four container vars, Prerequisites section missing Docker, no mention of ANTHROPIC_API_KEY forwarding requirement.
+  
+  ### Documentation (README.md)
+  6. **Root README missing container sandboxing** (DG2): The primary project entry point has no reference to Docker sandboxing, the Dockerfile, or `OUTPOST_AGENT_IMAGE`.
+  
+  ### Tests (mcp/remote-worker/test_server.py)
+  7. **Missing docker stop cancel test** (S2): No test verifies that `docker stop job-{id}` is called when cancelling a running containerized job.
+  
+  ### Tests (mcp/test_integration.py)
+  8. **Missing container integration test** (M3): No integration test exercises the container code path through the worker's processing loop.
+  
+  ## What Is NOT Changing
+  
+  - session-spawner (`mcp/session-spawner/server.py`)
+  - Architecture document (`specs/plan/architecture.md`)
+  - Role system, depth limits, concurrency model
+  - All other MCP tools or their interfaces
+  - Dockerfile (correct as-is)
+  - Container security flags in `_build_container_cmd`
+  
+  ## Scope Boundary
+  
+  This cycle fixes the cycle 8 review findings only. Out of scope: undocumented `spawn_session` additions (U1–U6), `--read-only` / `--network none` container hardening suggestions, daemon containerization, multi-tool abstraction for docker alternatives.
+  
+  ## Expected Impact
+  
+  All changes are backward-compatible. No changes to API contracts, job lifecycle states, or MCP tool schemas. The `ANTHROPIC_API_KEY` pre-flight check returns HTTP 500 only when container mode is active AND the key is unset — deployments without `OUTPOST_AGENT_IMAGE` are unaffected.
+  
+  ## Work Items
+  
+  - WI-051: Fix server.py (API key secret, pre-flight check, async docker stop, eviction call)
+  - WI-052: Update remote-worker README with container mode documentation
+  - WI-053: Update root README with container sandboxing section
+  - WI-054: Add docker stop cancel path test
+  - WI-055: Add container mode integration test
+content_hash: "544b163e5449ee980a6719355388e0d591ddd4496e1cc0b3be0f8b0def163fde"
+token_count: 857

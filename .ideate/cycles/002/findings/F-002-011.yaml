@@ -1,0 +1,17 @@
+id: F-002-011
+type: finding
+cycle: 2
+reviewer: code-reviewer
+severity: minor
+title: TimeoutExpired path omits stderr from error message (carry-forward)
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:399`
+  - **Issue**: After `proc.kill()` and nested `proc.communicate(timeout=10)`, `stderr_data` is captured but not included in the returned error string `f"Job timed out after {record.timeout}s"`.
+file_path: cycles/002/findings/F-002-011.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-002
+verdict: Fail
+content_hash: "1372dc5680479018cace983a01682e90dddac6bb6ba062a0ae139e0fe220fb6e"
+token_count: 147

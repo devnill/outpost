@@ -1,0 +1,18 @@
+id: FI-009-004
+type: finding
+cycle: 9
+reviewer: code-reviewer
+severity: minor
+title: Assertion uses prefix slice instead of exact equality
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:1501`
+  - **Issue**: `cmd[:3] == ["docker", "stop", container_name]` accepts any command that starts with those three tokens, even if the production code were changed to append extra arguments. The server call (`server.py:323`) passes exactly `["docker", "stop", container_name]` — no extra arguments — so the assertion is technically weaker than necessary.
+  - **Suggested fix**: Assert the full command with exact equality: `assert docker_stop_calls == [["docker", "stop", container_name]]`. This is both stricter and simpler than the `any(...)` comprehension.
+file_path: cycles/009/findings/FI-009-004.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-054
+verdict: Pass
+content_hash: be5d2abd5f3f9ab4954bed597e087420b1217c12e58c84e56aae22dca907d132
+token_count: 238

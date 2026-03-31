@@ -1,0 +1,11 @@
+id: J-007-020
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 1 — Work item 031: Add --cwd flag to _run_claude_job and max_jobs to list_remote_workers output"
+content: |
+  Status: complete with rework
+  Rework: 1 significant finding fixed — added ordering assertion for --cwd after --max-turns in test. 1 minor finding fixed — moved --allowedTools before prompt positional arg in remote-worker server.py.
+content_hash: "771fa9f7e8e9eaf3d2501b08c57283afeda997c3d2c0ad661014c601646f5ef0"
+token_count: 112

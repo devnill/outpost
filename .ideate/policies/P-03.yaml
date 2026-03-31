@@ -1,0 +1,14 @@
+id: P-03
+type: domain_policy
+domain: session-lifecycle
+status: active
+derived_from:
+  - GP-7 (Resource Bounds)
+established: planning phase
+amended: null
+description: Concurrency (semaphore), timeout (SIGKILL), output size (bytes), and prompt size (100 KB) limits are always enforced. The default configuration is conservative; unlimited is never an allowed default.
+cycle_created: 1
+cycle_modified: null
+content_hash: bc7730b2e8a010a226560f4a15b6fe4b3f32181c634420ff98bce185e73ad4cc
+token_count: 117
+file_path: .ideate/policies/P-03.yaml

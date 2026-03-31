@@ -1,0 +1,14 @@
+id: Q-01
+type: domain_question
+domain: session-lifecycle
+status: open
+impact: Callers relying on truncated output for debugging get different information depending on which end is preserved. Documentation should match implementation behavior.
+source: steering/guiding-principles.md (GP-10), plan/architecture.md §2
+resolution: null
+resolved_in: null
+description: When truncating session output to `max_output_bytes`, does the implementation preserve the beginning or the end of the output? GP-10 states "preserves the most relevant content" but does not specify which end.
+cycle_created: 1
+cycle_modified: null
+content_hash: "0531e99bfde50898797eb99aadc523000229740b4d745cdedd207dbbaa082958"
+token_count: 170
+file_path: .ideate/questions/Q-01.yaml

@@ -1,0 +1,30 @@
+id: FI-008-007
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: minor
+title: Sync tests bypass the `_reset_globals` autouse fixture
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:1333-1445`
+  - **Issue**: All six new tests are synchronous (`def test_...`). The autouse `_reset_globals` fixture is an `async def` defined with `@pytest_asyncio.fixture`. In pytest-asyncio auto mode, async fixtures are not injected into synchronous test functions. As a result, `worker.job_store`, `worker._max_jobs`, and `worker.job_queue` are not reset between these tests. The tests work today because they call `_run_claude_job` directly without touching `job_store`, but the isolation contract is weaker than it appears.
+  - **Suggested fix**: Either convert the six new tests to `async def` (making them eligible for the existing autouse fixture), or extract the reset logic into a synchronous autouse fixture that applies universally:
+    ```python
+    @pytest.fixture(autouse=True)
+    def _reset_sync_globals():
+        worker.job_store.clear()
+        worker._agent_image = ""
+        worker._container_runtime = ""
+        yield
+        worker.job_store.clear()
+        worker._agent_image = ""
+        worker._container_runtime = ""
+    ```
+    Note that `monkeypatch` already handles `_agent_image` and `_container_runtime` within each test, so the practical risk is low — but the fixture gap is a latent trap for future test authors.
+file_path: cycles/008/findings/FI-008-007.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-049
+verdict: null
+content_hash: d0b37fb299c38bcb28e6ed7b89784e4a1884881f62036132091e3d2d72644c45
+token_count: 405

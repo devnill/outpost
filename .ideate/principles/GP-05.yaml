@@ -1,0 +1,11 @@
+id: GP-05
+type: guiding_principle
+name: Configurable Dispatch
+status: active
+description: The user chooses whether sessions run locally or remotely. Local dispatch uses subprocess spawning with resource limits. Remote dispatch uses HTTP APIs to worker daemons. Both modes share the same job submission interface.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: db1b8ed08a8bd5c1c7d1d013065f0c6eb6b54979cccc191261fa1345e6939556
+token_count: 109
+file_path: .ideate/principles/GP-05.yaml

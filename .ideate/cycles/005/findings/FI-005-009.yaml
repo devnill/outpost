@@ -1,0 +1,22 @@
+id: FI-005-009
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: minor
+title: Timestamp sort key is lexicographic string comparison, not parsed datetime
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:306`
+  - **Issue**: `terminal.sort(key=lambda r: r.completed_at or r.created_at or "")` compares ISO 8601 strings lexicographically. This works correctly only because the timestamp format is fixed (`YYYY-MM-DDTHH:MM:SS.mmmZ`) and always zero-padded. If the timestamp format ever changes (e.g., timezone offset instead of `Z`, or sub-millisecond precision), the sort order can silently become incorrect.
+  - **Suggested fix**: Parse timestamps before sorting, or use a sentinel that guarantees correct ordering:
+    ```python
+    terminal.sort(key=lambda r: r.completed_at or r.created_at or "0000-00-00T00:00:00.000Z")
+    ```
+    Better still, store timestamps as `datetime` objects internally and only format them as strings at the API boundary.
+file_path: cycles/005/findings/FI-005-009.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-020
+verdict: Pass
+content_hash: "11db175c38b931213e1a94c7d1d3368f01c04dda73237300ba8ab69fc6515642"
+token_count: 285

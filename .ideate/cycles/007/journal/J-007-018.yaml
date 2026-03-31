@@ -1,0 +1,12 @@
+id: J-007-018
+type: journal_entry
+phase: brrr
+date: "2026-03-20"
+cycle_created: 7
+title: "Cycle 1 — Work item 023: README and Architecture Documentation Fixes"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed from incremental review.
+  Minor fix: remote-worker README role table cell changed from "Advisory role label" to accurate description of session-spawner resolution behavior.
+content_hash: "1736de0d4750b959b10d04e3c0094532dd97679bfc2999451fe4286bf478ff52"
+token_count: 105

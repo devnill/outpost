@@ -1,0 +1,18 @@
+id: FI-005-015
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: minor
+title: New test docstring mischaracterises what is being tested
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/test_server.py:357`
+  - **Issue**: The docstring says "when output_format is text" but the function name says "when extraction fails". These are two distinct conditions that both happen to yield null. The docstring should either reference both conditions or match the function name precisely. A reader relying on the docstring alone would not know this test also covers the extraction-failure path for `output_format='json'` (which it does not, leaving that subcase untested by the new test — though it is implicitly covered by pre-existing JSONL tests at lines 1339-1358).
+  - **Suggested fix**: Change docstring to: `"""Normal-path response includes token_usage: null when output_format is 'text' (token extraction is skipped)."""`
+file_path: cycles/005/findings/FI-005-015.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-024
+verdict: Pass
+content_hash: "6fcc861015d9581c52925122a351a93e77cf0d2697751b49efd85b410d11fb66"
+token_count: 278

@@ -1,0 +1,13 @@
+id: D-29
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: "Rename the existing `node` user (uid 1000) to `agent` via `usermod -l agent -d /home/agent -m node && groupmod -n agent node` in the Dockerfile. Avoids uid conflict with `node:20-bookworm-slim` base image which ships with a `node` user at uid 1000."
+rationale: "`useradd -u 1000` fails with \"UID 1000 is not unique\" on this base image. Renaming preserves the uid while giving the user an appropriate name."
+cycle_created: 1
+cycle_modified: null
+content_hash: "87031b90ce66b6edcf11ab9e4235d4c298036a5c79578af0804a4762f4f5f046"
+token_count: 154
+file_path: .ideate/decisions/D-29.yaml

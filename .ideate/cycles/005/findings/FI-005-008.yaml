@@ -1,0 +1,19 @@
+id: FI-005-008
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: significant
+title: "`test_health_returns_expected_fields` does not assert `max_jobs` is present"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/test_server.py:397-406`
+  - **Issue**: Acceptance criterion 6 requires `GET /health` to include a `max_jobs` integer field. The new field is present in the implementation (`server.py:162`), but the pre-existing `test_health_returns_expected_fields` test does not assert `"max_jobs" in data`. The two new eviction tests do not check the health endpoint at all. No test verifies the `max_jobs` value in the health response.
+  - **Impact**: A future refactor that removes or renames the `max_jobs` field from the health response would pass all tests.
+  - **Suggested fix**: Add `assert "max_jobs" in data` and `assert isinstance(data["max_jobs"], int)` to `test_health_returns_expected_fields`. Optionally add a test that sets `_max_jobs = 42` and asserts the health response returns `"max_jobs": 42`.
+file_path: cycles/005/findings/FI-005-008.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-020
+verdict: Pass
+content_hash: "9b1ad5b1b028c79d287091c635e61a44538eb1d6d30d6cb06d68f965ea1acf2c"
+token_count: 299

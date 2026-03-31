@@ -1,0 +1,11 @@
+id: J-011-003
+type: journal_entry
+phase: execute
+date: "2026-03-22"
+cycle_created: 11
+title: "Work item 048: Containerize job execution in _run_claude_job"
+content: |
+  Status: complete with rework
+  Rework: 1 critical + 1 significant + 1 minor finding fixed. C1: container_name was set before Popen, creating a cancel-race window; moved to after the cancelled guard and record.process assignment. C2: FileNotFoundError message was always "claude CLI not found" even in container mode; branched on _agent_image to emit "docker not found" when container mode is active. M2: _reset_globals fixture did not reset the four container config module-level variables; added resets. S1 (no container tests) is explicitly addressed by WI-049.
+content_hash: "8a287e59b63d0b9fcf48244474aa68c597697880977f5721bea049dbfcd218be"
+token_count: 187

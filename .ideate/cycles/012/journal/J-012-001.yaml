@@ -1,0 +1,13 @@
+id: J-012-001
+type: journal_entry
+phase: refine
+date: "2026-03-22"
+cycle_created: 12
+title: Refinement planning completed
+content: |
+  Trigger: Cycle 8 capstone review findings
+  Principles changed: none
+  New work items: 051-055
+  Addresses cycle 8 findings: S1 (ANTHROPIC_API_KEY secret in command list), S2 (no docker stop cancel test), DG1 (remote-worker README missing container docs), DG2 (root README missing container sandboxing), AO1 (blocking docker stop in async cancel_job), M1 (missing eviction call in cancel-while-starting path), M2 (no ANTHROPIC_API_KEY pre-flight check in container mode). All 5 work items touch different files; one parallel batch.
+content_hash: ee230bb597b7a4d644dc898ef74efef1f77a7e465c33ac6f943a1db7603a7d05
+token_count: 169

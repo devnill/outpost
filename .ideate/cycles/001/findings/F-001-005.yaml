@@ -1,0 +1,22 @@
+id: F-001-005
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: Timeout path in `_run_claude_job` silently drops `stderr`
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:398-400`
+  - **Issue**: After killing a timed-out process, `stderr_bytes` is captured from the second `communicate()` call but is never included in the returned tuple or stored on the record. The timeout error message at line 400 does not include any stderr content, which is the most diagnostic output for understanding why the process timed out.
+  - **Suggested fix**: Include stderr in the error field:
+    ```python
+    partial_stderr_str = stderr_bytes if isinstance(stderr_bytes, str) else stderr_bytes.decode("utf-8", errors="ignore")
+    return partial_stdout, -1, f"Job timed out after {record.timeout}s. Partial stderr: {partial_stderr_str[:2000]}"
+    ```
+file_path: cycles/001/findings/F-001-005.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-001
+verdict: Fail
+content_hash: "50f8f963dedba84801b45d9e763637a3578d409a91249cebc298bad0d85340b8"
+token_count: 261

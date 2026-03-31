@@ -1,0 +1,17 @@
+id: F-003-018
+type: finding
+cycle: 3
+reviewer: code-reviewer
+severity: minor
+title: "`_semaphore` created at module scope before event loop (carry-forward)"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:1195`
+  - **Issue**: `asyncio.Semaphore(DEFAULT_CONCURRENCY)` assigned at module level. On Python 3.10+ safe, but a caller that imports the module without running `main()` re-introduces the original compatibility risk.
+file_path: cycles/003/findings/F-003-018.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-003
+verdict: Fail
+content_hash: "0ffa7f64efc9e058412a29c2a328445f0ff20fe270feb5265a76e51038c59123"
+token_count: 153

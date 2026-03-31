@@ -1,0 +1,11 @@
+id: GP-02
+type: guiding_principle
+name: Explicit State Management
+status: active
+description: All coordination between sessions happens via durable artifacts on disk. The session registry, status files, and result outputs are the only communication mechanism. No in-memory state persists between tool invocations.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: "17aca314a5e49ab015d5795200b6765dff5002b7f4626d3fbc86a5206f9314b3"
+token_count: 109
+file_path: .ideate/principles/GP-02.yaml

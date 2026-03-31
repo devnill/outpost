@@ -1,0 +1,11 @@
+id: J-007-023
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 1 — Work item 032: Documentation sweep (cycle 7 minor gaps)"
+content: |
+  Status: complete with rework
+  Rework: 3 minor corrections from incremental review — cancel_remote_job repositioned to 5th in tool list; extra remote-worker requirements.txt line removed from CLAUDE.md; IDEATE_WORKER_MAX_JOBS description corrected to match spec verbatim.
+content_hash: ef8f302839e311d38c83611192668053c80d218183fb43d880aa00e613b38bf9
+token_count: 113

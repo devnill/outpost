@@ -1,0 +1,12 @@
+id: J-013-003
+type: journal_entry
+phase: execute
+date: "2026-03-22"
+cycle_created: 13
+title: "Work item 052: Document container mode in remote-worker README"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed from incremental review. Reverted claude CLI prerequisite bullet to original text (worker had added "(required in direct mode)" without authorization).
+  3 changes applied: Docker prerequisite added, 4 new env var rows in table, Container Mode section added before API Reference.
+content_hash: "225ed151f8a4604f2b5c4f9d32914bd3992dd2b07bce7575576289248110fbc5"
+token_count: 131

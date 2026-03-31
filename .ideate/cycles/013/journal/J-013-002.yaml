@@ -1,0 +1,12 @@
+id: J-013-002
+type: journal_entry
+phase: execute
+date: "2026-03-22"
+cycle_created: 13
+title: "Work item 051: Fix server.py security, correctness, and async issues"
+content: |
+  Status: complete with rework
+  Rework: 1 significant finding fixed from incremental review. Added `test_create_job_container_mode_missing_api_key_returns_500` to `mcp/remote-worker/test_server.py` to cover the ANTHROPIC_API_KEY pre-flight check in `create_job` (the check was implemented but had no test).
+  All 4 changes applied: ANTHROPIC_API_KEY name-only in _build_container_cmd, pre-flight guard in create_job, asyncio.to_thread wrapping docker stop in cancel_job, _evict_terminal_jobs_locked() in result-is-None branch of _process_job.
+content_hash: "9c9e46084d509f63d67e4781fd217df8a6e5c9dc46aeb2492883d9ac78f29ef7"
+token_count: 182

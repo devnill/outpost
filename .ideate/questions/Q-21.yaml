@@ -1,0 +1,14 @@
+id: Q-21
+type: domain_question
+domain: remote-dispatch
+status: resolved
+impact: Users cannot deploy container mode following the README alone. Missing `ANTHROPIC_API_KEY` note causes silent job failures.
+source: archive/cycles/008/gap-analysis.md (DG1), archive/cycles/008/decision-log.md (OQ-032)
+resolution: WI-052 added complete container mode documentation to the remote-worker README.
+resolved_in: 9
+description: Should `mcp/remote-worker/README.md` be updated to document `OUTPOST_AGENT_IMAGE`, `OUTPOST_CONTAINER_RUNTIME`, `OUTPOST_CONTAINER_MEMORY`, `OUTPOST_CONTAINER_CPUS`, Docker prerequisites, and the `ANTHROPIC_API_KEY` forwarding requirement?
+cycle_created: 1
+cycle_modified: null
+content_hash: "9a860ba017d2b7372d9ce48d75f76263ab50353ab963e86cfa11468d229c45ed"
+token_count: 191
+file_path: .ideate/questions/Q-21.yaml

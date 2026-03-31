@@ -1,0 +1,10 @@
+id: C-15
+type: constraint
+category: scope
+status: active
+description: Orchestration Only. Outpost does not execute work itself. It spawns sessions that execute work. The server is infrastructure, not a participant in the work.
+cycle_created: 1
+cycle_modified: null
+content_hash: "407ad19d78ae104f740290ceabc5b0c8c0105a156b671271a1e55a73d6f3325c"
+token_count: 81
+file_path: .ideate/constraints/C-15.yaml

@@ -1,0 +1,18 @@
+id: F-007-030
+type: finding
+cycle: 7
+reviewer: code-reviewer
+severity: minor
+title: IDEATE_WORKER_MAX_JOBS absent from architecture.md Section 8 table
+description: |
+  - **File**: `specs/plan/architecture.md` (Section 8 configuration table)
+  - **Issue**: `IDEATE_WORKER_MAX_JOBS` is a documented and implemented configuration variable (described in `mcp/remote-worker/server.py:9`, consumed at line 90) that controls the maximum number of job records retained in the job store. It is absent from the architecture Section 8 environment variable reference table, making the table incomplete for operators configuring the remote worker.
+  - **Suggested fix**: Add a row to the Section 8 table: `IDEATE_WORKER_MAX_JOBS | remote-worker | Max jobs retained in the in-memory store before LRU eviction (default: 1000)`.
+file_path: cycles/007/findings/F-007-030.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-007
+verdict: null
+content_hash: d067f7cf264f8727d411f7cd8ba59a0bc16068e8073751a91bb35b688c49c424
+token_count: 241

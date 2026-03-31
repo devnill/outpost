@@ -1,0 +1,18 @@
+id: FI-001-014
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: "`gather` teardown lacks yield point"
+description: |
+  - **File**: `mcp/remote-worker/test_server.py:496`
+  - **Issue**: After `await asyncio.gather(*worker_tasks, return_exceptions=True)`, no `await asyncio.sleep(0)` is issued, so cancelled coroutines do not fully unwind before the test exits.
+  - **Suggested fix**: Add `await asyncio.sleep(0)` after gather. Fixed in rework.
+file_path: cycles/001/findings/FI-001-014.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-031
+verdict: Pass
+content_hash: ecb1a0fd80a4ab56fe3ee536b91486c42339da2f52d8d3edd5864f67ef2d78cd
+token_count: 153

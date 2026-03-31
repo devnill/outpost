@@ -1,0 +1,11 @@
+id: GP-04
+type: guiding_principle
+name: Transparency and Observability
+status: active
+description: Every session lifecycle event is logged. Status queries return complete information about job state, timing, and outcomes. The manager agent has full visibility into worker health and job progress. Nothing is hidden.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: f63fc113df72158ef54707324973fc24a4cecaf121b36193dc6c62c4a2744182
+token_count: 109
+file_path: .ideate/principles/GP-04.yaml

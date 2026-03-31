@@ -1,0 +1,12 @@
+id: J-007-037
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 2 — Work item 035: Cap _session_registry with bounded deque"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed — stale docstring updated (test_server.py:505 described deque reset as "to []"; corrected to "empty deque(maxlen=1000)").
+  81 session-spawner tests pass.
+content_hash: "188f66d398fac26a3692512a462cff5e9d4b950679592a2c5ee9957d82c87aae"
+token_count: 100

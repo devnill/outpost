@@ -1,0 +1,11 @@
+id: GP-03
+type: guiding_principle
+name: Graceful Degradation
+status: active
+description: When a session fails, the system captures the failure reason and continues. Remote worker unavailability is handled gracefully with queueing and fallback. Timeouts are enforced with clear error reporting. The orchestrator never crashes due to worker failures.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: dc7436ee49f36be8906dc2dab7ff4ce2854f62f7ce61f34959e0aa1d25c6856d
+token_count: 118
+file_path: .ideate/principles/GP-03.yaml

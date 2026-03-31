@@ -1,0 +1,20 @@
+id: FI-008-002
+type: finding
+cycle: 8
+reviewer: code-reviewer
+severity: minor
+title: "`_evict_terminal_jobs_locked` is not called on the cancel-while-starting return path"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:502-506`
+  - **Issue**: When `_run_claude_job` returns `None` (cancel-while-starting sentinel), `_process_job` updates `duration_ms` but does not call `_evict_terminal_jobs_locked`. The cancelled job was already marked terminal by `cancel_job` but eviction is not triggered. Pre-existing before WI-048 and not introduced by this work item.
+  - **Suggested fix**: Call `_evict_terminal_jobs_locked()` inside the lock in the `result is None` branch of `_process_job` (line 504).
+  
+  ---
+file_path: cycles/008/findings/FI-008-002.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-048
+verdict: null
+content_hash: a619b75f2c16c9f75b4596df84945f0a6e4a7e21c2daf7542f4683cec9796596
+token_count: 221

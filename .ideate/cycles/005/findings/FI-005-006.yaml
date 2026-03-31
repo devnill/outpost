@@ -1,0 +1,23 @@
+id: FI-005-006
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: critical
+title: Eviction can remove terminal jobs needed to stay at _max_jobs when non-terminal jobs exceed the limit
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:302-309`
+  - **Issue**: `_evict_terminal_jobs` computes `evict_count = len(job_store) - _max_jobs` and then deletes exactly that many terminal jobs. If `len(terminal) < evict_count` — which happens whenever there are more non-terminal (running + queued) jobs than `_max_jobs` — the loop silently evicts all terminal jobs but still leaves the store over capacity. This is not a crash, but the invariant `len(job_store) <= _max_jobs` is violated for any store composition where active/queued jobs alone exceed the limit.
+  - **Impact**: The caller's implicit guarantee that the store is pruned to `_max_jobs` after eviction does not hold in these conditions. All terminal jobs get deleted without bringing the store to the target size, which can surprise callers relying on the invariant. More critically, if `evict_count > len(terminal)`, the slice `terminal[:evict_count]` silently does less work than expected with no warning.
+  - **Suggested fix**: Add a guard before the loop:
+    ```python
+    evict_count = min(len(job_store) - _max_jobs, len(terminal))
+    ```
+    Alternatively, after computing `evict_count`, if `len(terminal) < evict_count`, log a warning that the store cannot be fully pruned because non-terminal jobs exceed the capacity limit.
+file_path: cycles/005/findings/FI-005-006.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-020
+verdict: Pass
+content_hash: "581bb7257b82e0454ec8a411047f408c1460647d8c0dd36ccc2053b62bb80e9a"
+token_count: 418

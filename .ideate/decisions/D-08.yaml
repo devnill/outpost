@@ -1,0 +1,13 @@
+id: D-08
+type: domain_decision
+domain: session-lifecycle
+status: provisional
+cycle: 1
+supersedes: null
+description: "`_session_registry` is a module-level Python list. JSONL disk logging is only active when `OUTPOST_LOG_FILE` is set; there is no default path. Session history is lost on server restart unless the operator configures logging."
+rationale: Rationale not recorded. Contradicts hard constraint C4 and policies P-2, GP-2, GP-11 which require filesystem-based state.
+cycle_created: 1
+cycle_modified: null
+content_hash: "7218ac16df8660bfe8d2b8dd24413aae76bd9e3f607ef570a03b2026ca6d5741"
+token_count: 144
+file_path: .ideate/decisions/D-08.yaml

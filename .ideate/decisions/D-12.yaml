@@ -1,0 +1,13 @@
+id: D-12
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: Accept synchronous `spawn_session` as the final design; do not implement `poll_session`.
+rationale: Architecture originally defined async spawn+poll model, but implementation went synchronous. User confirmed synchronous is acceptable for the use case.
+cycle_created: 1
+cycle_modified: null
+content_hash: "1fed4611b265fa9ed0e2144cf7164cfe710ff65b000af64913ffceb793c2519b"
+token_count: 116
+file_path: .ideate/decisions/D-12.yaml

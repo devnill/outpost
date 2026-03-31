@@ -1,0 +1,14 @@
+id: Q-02
+type: domain_question
+domain: session-lifecycle
+status: open
+impact: Untrusted callers with API key access could inject instructions into all descendant sessions.
+source: specs/journal.md — WI-024, steering/constraints.md (C13 OUTPOST_SAFE_ROOT)
+resolution: null
+resolved_in: null
+description: The `exec_instructions` parameter propagates to all descendant sessions via environment variable. If outpost is used with untrusted prompts, this creates a potential for prompt injection via crafted exec_instructions. Is this risk documented and accepted?
+cycle_created: 1
+cycle_modified: null
+content_hash: "2691864b0d29795748609c168febd600298a04fb01762aaea3597ea7296e4ea3"
+token_count: 166
+file_path: .ideate/questions/Q-02.yaml

@@ -1,0 +1,19 @@
+id: F-003-014
+type: finding
+cycle: 3
+reviewer: code-reviewer
+severity: significant
+title: TOCTOU race between `job_queue.full()` check and `job_queue.put()` allows queue overflow
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:201-210`
+  - **Issue**: The 429 gate (`job_queue.full()`) and the enqueue (`await job_queue.put(job_id)`) are not atomic. Two concurrent `POST /jobs` requests can both pass the `full()` check simultaneously. Because `asyncio.Queue.put()` blocks when full, the second coroutine suspends indefinitely at the put, holding a live connection open rather than returning 429.
+  - **Impact**: Under concurrent load at capacity, the 429 back-pressure mechanism fails silently. Requests block instead of being rejected, consuming connection resources and violating the API contract.
+  - **Suggested fix**: Replace `await job_queue.put(job_id)` with `job_queue.put_nowait(job_id)` wrapped in `try/except asyncio.QueueFull`, raising HTTPException 429 in the except block. This makes the check-and-enqueue atomic within the single-threaded asyncio event loop.
+file_path: cycles/003/findings/F-003-014.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-003
+verdict: Fail
+content_hash: f8c426f02e6057d92f2c07b7932ebdc1dcbe349af7fad15ae987db7360d38ed5
+token_count: 315

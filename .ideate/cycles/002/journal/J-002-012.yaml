@@ -1,0 +1,11 @@
+id: J-002-012
+type: journal_entry
+phase: brrr
+date: "2026-03-16"
+cycle_created: 2
+title: "Cycle 1 — Work item 014: Fix poll_remote_job Missing Timestamp Fields"
+content: |
+  Status: complete with rework
+  Rework: 2 tests added (test_poll_remote_job_completed_includes_timestamp_fields, test_poll_remote_job_running_omits_absent_timestamp_fields). All 62 session-spawner tests pass.
+content_hash: "533d77c2c3bf1b8319ddffcf99eab928c4276ee4316248add0f4f7aad449b1dc"
+token_count: 98

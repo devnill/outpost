@@ -1,0 +1,12 @@
+id: J-013-005
+type: journal_entry
+phase: execute
+date: "2026-03-22"
+cycle_created: 13
+title: "Work item 054: Add docker stop cancel path test"
+content: |
+  Status: complete with rework
+  Rework: 1 minor finding fixed from incremental review. Tightened docker_stop_calls assertion from prefix-slice `any(cmd[:3] == [...])` to exact equality `docker_stop_calls == [["docker", "stop", container_name]]`.
+  New test `test_cancel_running_container_job_calls_docker_stop` added to mcp/remote-worker/test_server.py. 55 tests pass.
+content_hash: "70ada80196d0660dbdaaf56a23a7c00c1541c033193aa652125e5b6de2114f7e"
+token_count: 134

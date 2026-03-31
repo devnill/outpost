@@ -1,0 +1,18 @@
+id: FI-001-005
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: Invalid pyproject.toml build backend
+description: |
+  - **File**: `mcp/remote-worker/pyproject.toml:3`
+  - **Issue**: `setuptools.backends._legacy:_Backend` is a private internal API.
+  - **Resolution**: Fixed to `setuptools.build_meta`.
+file_path: cycles/001/findings/FI-001-005.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-030
+verdict: Pass
+content_hash: a4ffc2937c1257ab9e681507b34ecf9dd13bfe7ebea3e684eaec78f07e1a6e10
+token_count: 120

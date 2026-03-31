@@ -1,0 +1,19 @@
+id: F-005-025
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: minor
+title: "`_evict_terminal_jobs_locked` relies on caller discipline for lock; asyncio.Lock has no `locked()` method"
+description: |
+  - **File**: `mcp/remote-worker/server.py` (the renamed eviction function)
+  - **Issue**: The function is named `_locked` to signal it must be called under `job_store_lock`, but there is no runtime assertion enforcing this. The assert suggested in the incremental review (`assert job_store_lock.locked()`) was not added because `asyncio.Lock` does not expose a reliable `.locked()` check that's safe in all coroutine contexts.
+  - **Impact**: Low — all three call sites correctly hold the lock. But a future caller could omit the lock silently.
+  - **Suggested fix**: Add a brief comment at the function definition: "# Must be called while holding job_store_lock."
+file_path: cycles/005/findings/F-005-025.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-005
+verdict: Pass
+content_hash: cc356dcfabb16dcba0ab47e6dad015bb43123477e122c4571d2ea92dfadd68b7
+token_count: 256

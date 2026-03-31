@@ -1,0 +1,13 @@
+id: J-007-002
+type: journal_entry
+phase: review
+date: "2026-03-21"
+cycle_created: 7
+title: Metrics summary
+content: |
+  Agents spawned: 4 total (code-reviewer, spec-reviewer, gap-analyst, journal-keeper) + domain-curator
+  Total wall-clock: ~1,050,000ms
+  Models used: sonnet (all reviewers + curator)
+  Slowest agent: journal-keeper — ~448,000ms
+content_hash: "1f2a0279bc5246b5b3b652908321065f79780cb988298da2ad2838cc73453fdc"
+token_count: 89

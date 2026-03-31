@@ -1,0 +1,13 @@
+id: D-06
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: The `exec_instructions` parameter is injected into the child session's prompt and propagated to grandchild sessions via the `IDEATE_EXEC_INSTRUCTIONS` environment variable.
+rationale: Enables consistent execution context across session depth without requiring callers to re-pass instructions at every level.
+cycle_created: 1
+cycle_modified: null
+content_hash: "75d0b4a6bad882919be3c068b6b9c751b2d313c3f2950f3a416db10a8c9297dd"
+token_count: 130
+file_path: .ideate/decisions/D-06.yaml

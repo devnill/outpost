@@ -1,0 +1,11 @@
+id: GP-12
+type: guiding_principle
+name: Minimal Dependencies
+status: active
+description: The implementation uses the standard library and minimal external packages. FastAPI and aiohttp for remote workers, mcp for protocol. No heavy frameworks. This reduces attack surface and deployment complexity.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: d4c95bb9d5c18463d4cd2990db7aae7e22fa63e37cf4966e37fc562787960f34
+token_count: 105
+file_path: .ideate/principles/GP-12.yaml

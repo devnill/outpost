@@ -1,0 +1,11 @@
+id: J-007-016
+type: journal_entry
+phase: brrr
+date: "2026-03-20"
+cycle_created: 7
+title: "Cycle 1 — Work item 020: LRU Eviction for Job Store"
+content: |
+  Status: complete with rework
+  Rework: 1 critical + 2 significant findings fixed — eviction count capped at len(terminal) to prevent silent under-eviction; lifespan env var tests added; max_jobs health field assertion added; function renamed to _evict_terminal_jobs_locked.
+content_hash: "30abadd4c79ba9fa0a7e3e9355d067391796b84734451b2f593807e7bc120986"
+token_count: 110

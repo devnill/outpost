@@ -1,0 +1,13 @@
+id: D-19
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: Both session-spawner and remote-worker must catch `FileNotFoundError` when invoking the `claude` CLI and return a structured error message rather than propagating a raw Python exception. This is the most common new-user failure mode and has been flagged in four consecutive review cycles without being scheduled as a work item.
+rationale: Raw `FileNotFoundError` produces a Python traceback (session-spawner) or opaque "failed" job status (remote-worker), neither of which tells the user what to do. GP-3 (Graceful Degradation) requires structured error responses for predictable failure modes.
+cycle_created: 1
+cycle_modified: null
+content_hash: "84e4824173a58ae78683556ee9fdb4b790348c18b6d664cc1db5d29c97b07c5a"
+token_count: 203
+file_path: .ideate/decisions/D-19.yaml

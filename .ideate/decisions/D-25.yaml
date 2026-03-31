@@ -1,0 +1,13 @@
+id: D-25
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: Container mode activates only when `OUTPOST_AGENT_IMAGE` is non-empty. Default is empty string (no container). When empty, `_run_claude_job` behaves identically to pre-cycle-8 behavior. No breaking changes for deployments that do not set the new env var.
+rationale: Existing deployments must continue working without modification. Container mode is opt-in.
+cycle_created: 1
+cycle_modified: null
+content_hash: "7dd1e922d82452bae4e4700d93559bd76c2564b472df4c4bd19e9a6421638d3b"
+token_count: 142
+file_path: .ideate/decisions/D-25.yaml

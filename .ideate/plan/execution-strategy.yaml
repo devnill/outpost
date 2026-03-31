@@ -1,0 +1,57 @@
+id: execution-strategy
+type: execution_strategy
+title: Execution Strategy — Outpost Cycle 9
+content: |
+  # Execution Strategy — Outpost Cycle 9
+  
+  ## Mode
+  Batched parallel
+  
+  ## Parallelism
+  Max 5 agents (all work items touch different files — full parallelism available)
+  
+  ## Worktrees
+  Disabled (no file conflicts between items; worktrees add overhead without benefit here)
+  
+  ## Review Cadence
+  Incremental review after each work item completes.
+  
+  ## Work Item Groups
+  
+  ### Batch 1 — All items (parallel)
+  
+  All five work items touch different files and have no dependencies on each other:
+  
+  | Work Item | File(s) | Complexity |
+  |-----------|---------|------------|
+  | WI-051 | mcp/remote-worker/server.py | easy |
+  | WI-052 | mcp/remote-worker/README.md | easy |
+  | WI-053 | README.md | easy |
+  | WI-054 | mcp/remote-worker/test_server.py | easy |
+  | WI-055 | mcp/test_integration.py | easy |
+  
+  All five may be dispatched simultaneously in a single batch.
+  
+  ## Dependency Graph
+  
+  ```
+  WI-051 ─── (none)
+  WI-052 ─── (none)
+  WI-053 ─── (none)
+  WI-054 ─── (none)
+  WI-055 ─── (none)
+  ```
+  
+  ## Agent Configuration
+  
+  - Model: sonnet (all work items)
+  - Max turns: 15 per agent (all items are small, focused edits)
+  - Permission mode: acceptEdits
+  
+  ## Notes
+  
+  WI-054 tests the behavior of `cancel_job` after the AO1 fix (asyncio.to_thread wrapping). The test should be written to verify the post-fix behavior: `subprocess.run` is called with `["docker", "stop", "job-{id}"]` when a running containerized job is cancelled. Since `asyncio.to_thread` simply calls the function in a thread pool, monkeypatching `subprocess.run` on the worker module will intercept the call regardless.
+  
+  WI-055 follows the pattern of the existing full-lifecycle integration test: start a `_worker` coroutine, monkeypatch `_run_claude_job` to simulate execution, set `_agent_image` to activate container mode, submit a job via the queue, and verify the worker correctly processes the job in container mode (verifying `record.container_name` is set during execution and cleared after).
+content_hash: "8b53601faf8dd1346b3c2268154bc3a70826fead0d8593ad7203e2d1e90b51b4"
+token_count: 522

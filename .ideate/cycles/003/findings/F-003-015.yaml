@@ -1,0 +1,19 @@
+id: F-003-015
+type: finding
+cycle: 3
+reviewer: code-reviewer
+severity: significant
+title: "`_handle_cancel_remote_job` returns on first connection error, masking real result"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:1031-1039`
+  - **Issue**: The second pass in `_handle_cancel_remote_job` returns immediately on any `_status in ("conflict", "error")`. Connection errors (`_status: "error"`) are included. With multiple workers, a network failure on any worker that never owned the job returns a "Connection error for worker X" instead of "job not found" — preempting the not-found check.
+  - **Impact**: A transient network failure on any non-owning worker produces an incorrect error message, masking the true result.
+  - **Suggested fix**: Separate connection errors from 409 conflict. Only return immediately on 409 conflict (which is definitive from a specific worker). Collect connection errors and surface them only if no other resolution is found.
+file_path: cycles/003/findings/F-003-015.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-003
+verdict: Fail
+content_hash: f280ff816d739294815ca828666f3be077d6cc71de1ab20a407e337fabe6d77b
+token_count: 289

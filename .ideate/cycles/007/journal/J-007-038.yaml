@@ -1,0 +1,12 @@
+id: J-007-038
+type: journal_entry
+phase: brrr
+date: "2026-03-22"
+cycle_created: 7
+title: "Cycle 2 — Work item 036: Fix cancel_remote_job sequential fan-out"
+content: |
+  Status: complete with rework
+  Rework: 1 significant finding fixed — concurrency test replaced with asyncio.Event cross-wait pattern that deadlocks under sequential execution; 1 minor finding fixed — fallback error message now includes all workers (not just not_found ones).
+  81 session-spawner tests pass.
+content_hash: "72897c4848d7fb62fb4fb4577d0a880e315f88d69133dee14d2674a8545ea221"
+token_count: 122

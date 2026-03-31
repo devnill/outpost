@@ -1,0 +1,13 @@
+id: D-16
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: Resolve role in `_handle_spawn_remote_session` before building HTTP payload.
+rationale: Implements D-14 (Option A resolution); satisfies GP-8 (Role-Based Sessions).
+cycle_created: 1
+cycle_modified: null
+content_hash: b211a44e589d6cc7ffc0d78247f31efc3fd7ab05045101be8a54439cc13bab68
+token_count: 95
+file_path: .ideate/decisions/D-16.yaml

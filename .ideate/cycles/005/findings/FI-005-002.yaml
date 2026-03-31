@@ -1,0 +1,19 @@
+id: FI-005-002
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: critical
+title: Auth error in fan-out loop aborts remaining workers
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:987`
+  - **Issue**: The 401/403 branch inside the same loop does `return [...]` immediately, aborting fan-out. If worker-1 returns 401 (misconfigured key) and worker-2 owns the job, the cancellation silently fails.
+  - **Impact**: A misconfigured auth key on any worker that precedes the owning worker in config order will prevent cancellation from succeeding.
+  - **Suggested fix**: Collect auth errors in a side-list (parallel to `not_found_workers`) and continue the loop. After the loop, if an auth error was recorded and the job was never found, return the auth error.
+file_path: cycles/005/findings/FI-005-002.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-019
+verdict: Pass
+content_hash: "9a43dc7c7e72446f0b6e864c9b34d02e8819e4dc23a0e8f3e693f1c568a4a3c0"
+token_count: 237

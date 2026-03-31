@@ -1,0 +1,10 @@
+id: C-06
+type: constraint
+category: design
+status: active
+description: No Shared Working Directory. Each session has its own working directory. The parent session's working directory is passed by path, not shared. Sessions cannot write to the parent's workspace.
+cycle_created: 1
+cycle_modified: null
+content_hash: "20e81cd3a7aac12bea1006efc70aff37e6db15ede4af9bf700a99676d0701034"
+token_count: 90
+file_path: .ideate/constraints/C-06.yaml

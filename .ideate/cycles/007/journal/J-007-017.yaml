@@ -1,0 +1,11 @@
+id: J-007-017
+type: journal_entry
+phase: brrr
+date: "2026-03-20"
+cycle_created: 7
+title: "Cycle 1 — Work item 018: Propagate Role system_prompt for Remote Sessions"
+content: |
+  Status: complete with rework
+  Rework: 2 significant findings fixed — schema updated to allow inline-dict role (oneOf: string|object), added test for inline-dict with system_prompt injection (AC3), added prompt payload assertion for no-role path (AC5).
+content_hash: "33626715ad6cd88e6cbca07d4e49e9876063a0226065ed0bd76fafa06e16774f"
+token_count: 110

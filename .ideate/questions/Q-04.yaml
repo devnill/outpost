@@ -1,0 +1,14 @@
+id: Q-04
+type: domain_question
+domain: session-lifecycle
+status: open — escalated in cycle 7
+impact: Session history is lost on server restart. Registry grows without bound in memory. P-2 is currently violated.
+source: archive/cycles/002/summary.md (OQ-001), archive/cycles/002/gap-analysis.md (MR2)
+resolution: null
+resolved_in: null
+description: The implementation uses an in-memory `_session_registry` with opt-in JSONL logging (no default path), violating hard constraint C4 and policy P-2. Should filesystem-backed state be enforced (e.g., default `OUTPOST_LOG_FILE` path), or should the constraint be relaxed?
+cycle_created: 1
+cycle_modified: null
+content_hash: "97850326de71d32b16c41c9c35d417b2a097d8c814610b233b659358a168c76b"
+token_count: 180
+file_path: .ideate/questions/Q-04.yaml

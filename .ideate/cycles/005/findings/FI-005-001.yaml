@@ -1,0 +1,19 @@
+id: FI-005-001
+type: finding
+cycle: 5
+reviewer: code-reviewer
+severity: critical
+title: Exception in fan-out loop aborts remaining workers
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:1027`
+  - **Issue**: The `except Exception` handler inside the `for w in workers_to_try` loop does `return [...]` immediately. When `worker_name` is omitted and worker-1 raises a connection exception, worker-2 is never tried. The analogous `_handle_poll_remote_job` collects exceptions via `asyncio.gather` and continues to other workers before deciding the final result.
+  - **Impact**: Any transient network error on worker-1 makes the job permanently unreachable via multi-worker fan-out even when worker-2 owns the job and is healthy.
+  - **Suggested fix**: Replace the `return` with `continue` (or append to an error list) so the loop proceeds to the next worker. Return the connection error only after exhausting all workers, following the same gather-then-classify pattern used by `_handle_poll_remote_job`.
+file_path: cycles/005/findings/FI-005-001.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-019
+verdict: Pass
+content_hash: "8f1e17cb0a293b459791d0a41b482839c4381a31313a50dbe1cf67437675781b"
+token_count: 297

@@ -1,0 +1,18 @@
+id: FI-002-002
+type: finding
+cycle: 2
+reviewer: code-reviewer
+severity: minor
+title: Timeout path does not write overflow file for large partial output
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:542-561`
+  - **Issue**: When a subprocess times out with partial stdout that exceeds 50 KB, the response does not write an overflow file and does not set `output_truncated` or `full_output_path`. The success path does both. Callers cannot recover the full partial output.
+  - **Suggested fix**: Mirror the overflow-file logic from the success path (lines 487–495) in the timeout branch before building the response.
+file_path: cycles/002/findings/FI-002-002.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-011
+verdict: Pass
+content_hash: c458f3dd7541cc9dc2d9974fbc5f83b9f03489113937acb67fa0d51b21f86f2b
+token_count: 201

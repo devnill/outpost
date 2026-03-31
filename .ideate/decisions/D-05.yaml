@@ -1,0 +1,13 @@
+id: D-05
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: If the caller specifies a model, it overrides any model defined in the role. Role default is used only when the caller omits the parameter.
+rationale: Consistent with the pattern used for other role-overridable parameters (max_turns, permission_mode, allowed_tools). Caller has the most context about what model is needed.
+cycle_created: 1
+cycle_modified: null
+content_hash: "7b2499f71b883b7ef5db2c92e16d7e5ec2781df54f97d42a33139c077e93639e"
+token_count: 134
+file_path: .ideate/decisions/D-05.yaml

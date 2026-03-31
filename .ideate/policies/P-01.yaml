@@ -1,0 +1,14 @@
+id: P-01
+type: domain_policy
+domain: session-lifecycle
+status: active
+derived_from:
+  - GP-1 (Session Isolation)
+established: planning phase
+amended: null
+description: Each spawned session receives its own working directory. The parent session's path is passed by reference; sessions cannot write to the parent workspace.
+cycle_created: 1
+cycle_modified: null
+content_hash: ab82d7bc1b4be3fac8a055f8303dcdba96bab9a19dc82fe9a9ce2e4740774234
+token_count: 106
+file_path: .ideate/policies/P-01.yaml

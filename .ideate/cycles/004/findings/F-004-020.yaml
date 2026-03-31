@@ -1,0 +1,15 @@
+id: F-004-020
+type: finding
+cycle: 4
+reviewer: code-reviewer
+severity: minor
+title: TimeoutExpired path omits stderr from error (carry-forward)
+description: "- **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:410`"
+file_path: cycles/004/findings/F-004-020.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-004
+verdict: Pass
+content_hash: "585041e66a054238877a29147d4235cb656c57225a7a5e7e73634fba5d1d26dd"
+token_count: 96

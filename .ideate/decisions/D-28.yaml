@@ -1,0 +1,13 @@
+id: D-28
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: Remote-worker daemon runs directly on host. Per-job containers provide isolation for agent execution. Daemon containerization deferred as a deployment concern for a later iteration.
+rationale: Container isolation at the job level meets the current security requirements without the complexity of containerizing the daemon itself.
+cycle_created: 1
+cycle_modified: null
+content_hash: "52f0a62fce722b88d9cd79f0410b5f2f487ad68268875335abdcff2b304e10e1"
+token_count: 135
+file_path: .ideate/decisions/D-28.yaml

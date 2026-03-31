@@ -1,0 +1,15 @@
+id: FI-001-008
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: logging.basicConfig after print in main()
+description: "- **Resolution**: Fixed. `logging.basicConfig` called first; startup message uses `logger.info`."
+file_path: cycles/001/findings/FI-001-008.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-030
+verdict: Pass
+content_hash: aa87e034f0e852c517f53c1ad4110d944ba3a737700a74b020b740d88d86f3cc
+token_count: 98

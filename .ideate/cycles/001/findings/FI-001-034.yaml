@@ -1,0 +1,15 @@
+id: FI-001-034
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: Handoff Pending absent from template — FALSE POSITIVE
+description: - The section is present in the template at lines 170-177. No fix needed.
+file_path: cycles/001/findings/FI-001-034.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-035
+verdict: Pass
+content_hash: "0c370761965fcf51b049f6cd37dc5f5a165aa722ecbbdaaa5ac8996dd1712c15"
+token_count: 97

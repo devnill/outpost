@@ -1,0 +1,26 @@
+id: F-009-037
+type: finding
+cycle: 9
+reviewer: code-reviewer
+severity: critical
+title: Double docker-stop race between `cancel_job` and `_run_claude_job` finally block
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/remote-worker/server.py:319` and `:499`
+  - **Issue**: `cancel_job` reads `container_name` from the record under the lock (line 305), then calls `docker stop <container>` outside the lock (lines 319–328). Concurrently, `_run_claude_job`'s `finally` block (line 499) sets `record.container_name = None` as soon as the container process exits normally or times out — with no lock held. If the container finishes on its own just as a cancel arrives, `_run_claude_job`'s finally clears `record.container_name` while `cancel_job` already has the name in a local variable and is about to invoke `docker stop`. This is harmless in the success case, but the symmetric race in the other direction is more serious: if `cancel_job` has already called `docker stop` and is waiting on `asyncio.to_thread`, and `_run_claude_job` returns from `proc.communicate()` (because docker stop terminated it), the finally block sets `record.process = None` and `record.container_name = None`. Then `_process_job` updates the record status. Meanwhile `cancel_job` also sets `record.status = "cancelled"` under the lock. Both code paths update `record.status` without coordinating on who wins, and both may call `_evict_terminal_jobs_locked()` in rapid succession — the second call runs after the first already deleted the record from `job_store`, causing a silent no-op eviction on a now-absent entry, which is safe, but the status written by `_process_job` (line 552–554) will overwrite the "cancelled" status written by `cancel_job` (line 306) if `_process_job`'s lock acquisition happens after `cancel_job` releases it but before `_process_job` checks `record.status != "cancelled"`. The check at line 552 guards against this only if `_process_job` acquires the lock after `cancel_job` has set the status. Because both run concurrently and the lock is the only ordering mechanism, the outcome depends on scheduling. In practice the cancel guard works, but the log message at line 536 ("claude not found") fires on the docker-not-found path even though docker was found; see S1 for that. The true critical concern here is that `proc.terminate()` at line 333 is called even when the process was already stopped by `docker stop`, because `proc` is the `docker run` parent process. `docker stop` sends SIGTERM/SIGKILL to the container, which causes `docker run` to exit, but `cancel_job` then also calls `proc.terminate()` on the already-exited `docker run` process. This is safe because `ProcessLookupError` is caught, so it is not a crash — but it means the exception handling path in `cancel_job` is exercised on every container cancel, not just on edge cases.
+  - **Impact**: No crash occurs because exceptions are swallowed. However, `cancel_job` unconditionally calls `proc.terminate()` on the `docker run` process that `docker stop` already caused to exit. The real exposure is the status race: on a slow event loop, `_process_job` can set status to "completed" or "failed" after `cancel_job` sets it to "cancelled" if `_process_job`'s `async with job_store_lock` block at line 546 is entered after `cancel_job` releases the lock at line 316 but before `_process_job` re-acquires it after `_capture_git_diff` at line 540. The `if record.status != "cancelled"` guard at line 552 prevents the status overwrite, so the status itself is safe. The double `_evict_terminal_jobs_locked()` invocation is also safe. The concrete harm is that `proc.terminate()` always fires on container jobs even when unnecessary; this is low-severity but is structurally wrong.
+  - **Suggested fix**: After calling `docker stop`, set a flag so the subsequent `proc.terminate()` block is skipped for container jobs. The simplest fix: replace the unconditional `if proc is not None:` block at line 331 with `if proc is not None and not container_name:` — since `docker stop` already caused `docker run` to exit, there is nothing for `proc.terminate()` to do. Alternatively, after `docker stop` returns, skip the terminate/wait block entirely by wrapping it:
+    ```python
+    if proc is not None and not container_name:
+        try:
+            proc.terminate()
+        ...
+    ```
+    This is safe because `docker stop` already delivers SIGTERM (then SIGKILL after 10 s) to the container, and `docker run` exits as a result.
+file_path: cycles/009/findings/F-009-037.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-009
+verdict: Pass
+content_hash: deebe360edf91121b8b5b50296078eba395874d3f8df6f6b91d3f2c42efdcea2
+token_count: 1167

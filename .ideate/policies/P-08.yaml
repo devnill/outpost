@@ -1,0 +1,15 @@
+id: P-08
+type: domain_policy
+domain: remote-dispatch
+status: active
+derived_from:
+  - D-33
+  - cycle 9 capstone code review (C1)
+established: cycle 9
+amended: null
+description: When cancelling a containerized job, `docker stop` terminates the container and causes the host-side `docker run` process to exit. A subsequent `proc.terminate()` is always hitting an already-exited process. The `proc.terminate()` block must be gated on `not container_name` to avoid structurally incorrect exception-path execution on every container cancel.
+cycle_created: 1
+cycle_modified: null
+content_hash: "04f2e33a3119e49bda5f024b8243d460032e87b9452f25c8d1f6b52502c23b9f"
+token_count: 159
+file_path: .ideate/policies/P-08.yaml

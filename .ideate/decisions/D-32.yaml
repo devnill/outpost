@@ -1,0 +1,13 @@
+id: D-32
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: "`cancel_job` wraps `subprocess.run([\"docker\", \"stop\", ...])` in `await asyncio.to_thread(...)` to avoid blocking the async event loop during the docker stop timeout window (up to 15 seconds)."
+rationale: "`cancel_job` is `async def`. Direct `subprocess.run` would block the event loop, preventing other requests from being handled during the docker stop wait."
+cycle_created: 1
+cycle_modified: null
+content_hash: f4ba20dff56d8d455a3f26487a9313426258087c3ae68a015d3871bd63f0a22d
+token_count: 143
+file_path: .ideate/decisions/D-32.yaml

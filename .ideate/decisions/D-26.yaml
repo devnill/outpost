@@ -1,0 +1,13 @@
+id: D-26
+type: domain_decision
+domain: remote-dispatch
+status: settled
+cycle: 1
+supersedes: null
+description: "`record.process = proc` is assigned immediately after the cancelled guard. `record.container_name = f\"job-{record.job_id}\"` is set only after `record.process` is assigned, both inside the same guard section. Both are cleared in the `finally` block."
+rationale: Original code set `container_name` before `subprocess.Popen`, creating a race where `cancel_job` could call `docker stop` on a non-existent container.
+cycle_created: 1
+cycle_modified: null
+content_hash: b3dcbdbb5033d0601046209eef361149a435c668238266e95cb46e064050e6ca
+token_count: 156
+file_path: .ideate/decisions/D-26.yaml

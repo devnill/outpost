@@ -1,0 +1,11 @@
+id: GP-08
+type: guiding_principle
+name: Role-Based Sessions
+status: active
+description: Sessions can be assigned roles that constrain their capabilities. A worker role, reviewer role, and manager role each have defined tool sets and permissions. This enables safe parallel execution with appropriate privilege levels.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: "15668bd8388f1dfc6b39b539c2aa56b877adc8ebe69ef1401c6cef76a80ae3de"
+token_count: 110
+file_path: .ideate/principles/GP-08.yaml

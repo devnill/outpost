@@ -1,0 +1,19 @@
+id: FI-001-024
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: significant
+title: "`_http_session` is `None` at module level; handlers dereference without guard"
+description: |
+  - **File**: `mcp/session-spawner/server.py:948`
+  - **Issue**: Handlers called without `main()` raise `AttributeError` instead of the structured error the tool contract promises.
+  - **Impact**: Test isolation failures; unhandled exception instead of structured response.
+  - **Suggested fix**: Add `_get_http_session()` lazy initializer. Fixed in rework.
+file_path: cycles/001/findings/FI-001-024.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-033
+verdict: Pass
+content_hash: d82a7b84dfc82cf63bab4e8dcc47daf942c4d351eca75a8a18493c65d7a10a37
+token_count: 173

@@ -1,0 +1,11 @@
+id: GP-01
+type: guiding_principle
+name: Session Isolation
+status: active
+description: Each spawned session operates in complete isolation. No shared state, no shared working directory, no shared environment variables beyond explicit passing. Sessions are independent processes that cannot interfere with each other.
+amendment_history: []
+cycle_created: 1
+cycle_modified: null
+content_hash: ae92849a220178a96cbaeb22e48b3b91870adbeb10df4d7b59712e2c7a15b559
+token_count: 109
+file_path: .ideate/principles/GP-01.yaml

@@ -1,0 +1,408 @@
+id: research-multi-tool-agent-landscape
+type: research
+title: "Research: Multi-Tool Agent Backend Landscape"
+content: |
+  # Research: Multi-Tool Agent Backend Landscape
+  
+  **Date**: 2026-03-22
+  **Question**: What CLI-based AI coding tools could serve as alternative agent backends in Outpost's remote-worker, replacing or complementing `claude --print`?
+  
+  ## Summary
+  
+  The remote-worker currently hardcodes `claude --print --output-format json` in `_run_claude_job` (server.py:366) with no abstraction layer. Multiple viable alternatives exist with headless/non-interactive modes, but they differ significantly in output format, model configurability, maturity, and sandboxing behavior. opencode is the closest structural analog. Aider and Goose are mature but require output-format adaptation. Claude Code itself can be redirected to non-Anthropic models via env vars without changing the invocation command. A thin three-method driver interface at the `_run_claude_job` boundary is sufficient to support multiple backends.
+  
+  ---
+  
+  ## 1. opencode
+  
+  **What it is**: Open-source terminal-native AI coding agent by the SST team. A direct Claude Code alternative: TUI as primary interface, provider-agnostic, written in Go/TypeScript.
+  
+  - **GitHub**: github.com/sst/opencode
+  - **License**: MIT
+  - **Maturity**: Created April 2025, v1.2.27 (March 16 2026), 737 releases, 10,452 commits, ~41k GitHub stars — very actively maintained
+  - **Relation to Claude Code**: Closest structural analog. `opencode run` maps directly to `claude --print`.
+  
+  ### Headless/Non-Interactive CLI
+  
+  ```bash
+  opencode run "your prompt here"          # non-interactive, prints result, exits
+  opencode run "prompt" --format json      # JSON event stream output
+  opencode run "prompt" -q                 # suppress spinner (for scripts)
+  opencode run "prompt" -m provider/model  # select model
+  opencode run "prompt" --allowedTools "Read,Edit"
+  opencode run "prompt" --excludedTools "Bash"
+  opencode run "prompt" --attach http://localhost:4096  # attach to running server
+  ```
+  
+  Output format `--format json` emits raw JSON events — structurally similar to Claude Code's `--output-format stream-json`, not to `--output-format json` (which is a final summary object). A parser adapter would be needed.
+  
+  ### Models
+  
+  75+ providers out of the box: Anthropic Claude, OpenAI GPT, Google Gemini, AWS Bedrock, Azure OpenAI, Groq, DeepSeek, Grok, Ollama (local), OpenRouter. Explicitly not coupled to any provider.
+  
+  ### vs. Claude Code for autonomous coding
+  
+  | Factor | Claude Code | opencode |
+  |---|---|---|
+  | Subprocess invocation | `claude -p "prompt"` | `opencode run "prompt"` |
+  | JSON output | `--output-format json` (final object) | `--format json` (event stream) |
+  | Model selection | `--model` flag + ANTHROPIC_* env vars | `-m provider/model` flag |
+  | Tool control | `--allowedTools`, `--disallowedTools` | `--allowedTools`, `--excludedTools` |
+  | Permission mode | `--permission-mode acceptEdits` | no equivalent documented |
+  | Max turns | `--max-turns N` | not documented |
+  | Budget limit | `--max-budget-usd` | not documented |
+  | Built-in sandboxing | Yes (bubblewrap/seatbelt) | No |
+  | License | Proprietary | MIT |
+  
+  ---
+  
+  ## 2. Other AI Coding CLIs
+  
+  ### Aider
+  
+  - **GitHub**: github.com/Aider-AI/aider
+  - **License**: Apache 2.0
+  - **Maturity**: 30,000+ stars, continuous releases, highly active — the most established alternative
+  - **Model support**: Claude 3.7 Sonnet (recommended), OpenAI GPT-4o/o1/o3-mini, DeepSeek R1/V3, Gemini, Cohere, local via Ollama/LiteLLM — described as supporting "almost any LLM"
+  - **Best for**: Git-centric workflows; auto-commits changes after edits
+  
+  **Headless invocation**:
+  ```bash
+  aider --message "add docstrings to all functions" script.py --yes
+  aider --message-file instructions.txt myfile.js --yes
+  aider --yes --no-auto-commits --message "refactor this" app.py
+  aider --dry-run --message "make changes" file.py --yes
+  ```
+  
+  `--message` / `--msg` / `-m`: send single instruction, process reply, then exit.
+  `--yes`: auto-confirm all prompts (required for non-interactive use).
+  `--no-auto-commits`: disable automatic git commits.
+  `--stream` / `--no-stream`: streaming response control.
+  
+  **Output**: plain text to stdout. No native JSON output mode. Output parsing requires text extraction.
+  
+  **Adaptation notes**: Aider expects files to be specified on the CLI alongside the prompt — it is designed for targeted file editing rather than open-ended task execution. For Outpost's open-ended task model, prompts would need to instruct aider which files to operate on, or rely on aider's auto-discovery.
+  
+  ---
+  
+  ### Goose (Block)
+  
+  - **GitHub**: github.com/block/goose
+  - **License**: Apache 2.0
+  - **Maturity**: 30,000+ stars, 350+ contributors, 110+ releases; donated to Linux Foundation Agentic AI Foundation (AAIF) December 2025 alongside Anthropic MCP and OpenAI AGENTS.md
+  - **Model support**: 25+ LLM providers; any LLM via MCP; commercial, cloud, and local
+  
+  **Headless invocation**:
+  ```bash
+  GOOSE_MODE=auto goose run -t "your task description"
+  goose run -t "task" --no-session
+  goose run --recipe workflow.yaml --params key=value
+  goose run -t "task" --with-builtin developer --debug
+  ```
+  
+  `GOOSE_MODE=auto`: enables non-interactive execution.
+  `--no-session`: skip session history (for one-off tasks).
+  `--recipe`: execute a predefined workflow YAML.
+  
+  **Output**: plain text; no native JSON output flag documented. Recipes support `output_format=json` or `output_format=markdown` as parameters.
+  
+  **Adaptation notes**: Goose is more workflow/agent-oriented than file-editing-oriented. The `--recipe` flag enables parameterized reusable workflows, which could be a useful pattern for Outpost job templates.
+  
+  ---
+  
+  ### OpenHands-CLI
+  
+  - **GitHub**: github.com/OpenHands/OpenHands-CLI
+  - **License**: MIT
+  - **Maturity**: v1.13.1, created September 2025, 132 stars — early stage. The full OpenHands (All-Hands-AI/OpenHands) is production-grade; this CLI binary is new.
+  
+  **Headless invocation**:
+  ```bash
+  openhands --headless -t "Write a Python script that prints hello world"
+  openhands --headless -f task.txt
+  openhands --headless --json -t "Create a Flask app"
+  openhands --headless --always-approve -t "task"   # auto-approve all actions
+  openhands --headless --yolo -t "task"              # alias for --always-approve
+  ```
+  
+  **Model configuration** (env vars):
+  ```bash
+  LLM_MODEL=claude-sonnet-4-6
+  LLM_API_KEY=sk-...
+  LLM_BASE_URL=https://api.anthropic.com  # or any compatible endpoint
+  ```
+  
+  **Output**: text (default), JSON with `--json` flag.
+  
+  **Adaptation notes**: Headless mode has documented rough edges — open GitHub issues for non-interactive use on certain Linux environments (PTY-detection failures in `subprocess_terminal.py`). Not recommended as a first target backend. The full OpenHands requires Docker for proper sandboxed execution.
+  
+  ---
+  
+  ### SWE-agent / mini-SWE-agent
+  
+  - **GitHub**: github.com/SWE-agent/SWE-agent, github.com/SWE-agent/mini-swe-agent
+  - **License**: MIT
+  - **Maturity**: Research-originated (NeurIPS 2024), actively maintained; mini-SWE-agent scores >74% on SWE-bench verified
+  
+  **Invocation pattern**: Headless batch/CLI is the primary mode, not interactive.
+  
+  ```bash
+  sweagent run --agent.model.name claude-sonnet-4-6 --problem_statement "fix the bug"
+  ```
+  
+  **Key architectural property**: Every agent action is an independent `subprocess.run` call — fully stateless. Sandboxing is trivially achievable by swapping `subprocess.run` for `docker exec`. Environments: local, Docker, Podman, Singularity, Bubblewrap, SWE-ReX.
+  
+  **Model support**: LiteLLM (any provider) + direct Anthropic adapter. Model selected via config or `--agent.model.name` flag.
+  
+  **Output**: trajectory JSON (`.traj.json` files) — machine-readable record of all agent actions and observations. Not a simple stdout string.
+  
+  **Adaptation notes**: SWE-agent's output format (trajectory files) is the most divergent from Claude Code's JSON blob. A driver would need to parse `.traj.json` and extract the final outcome. Best suited for research/evaluation pipelines, not general-purpose task execution.
+  
+  ---
+  
+  ### Amp
+  
+  - **Provider**: Sourcegraph
+  - **License**: Proprietary (commercial)
+  - **Models**: smart=Claude Opus 4.6, rush=faster model, deep=GPT-5.3 Codex, oracle=GPT-5.4 — not user-configurable to arbitrary providers
+  - **Auth**: Requires Amp account; `AMP_API_KEY` env var
+  
+  **Headless invocation**:
+  ```bash
+  amp -x "your prompt here"
+  amp --execute "your prompt here"
+  echo "prompt" | amp -x           # piped input
+  ```
+  
+  Execute mode auto-activates when stdout is redirected.
+  
+  **Key flags**:
+  - `--dangerously-allow-all`: auto-approve all tool permissions (CI/CD use)
+  - `--stream-json`: streaming JSON output
+  - `--stream-json-thinking`: include thinking blocks in JSON output
+  - `--mcp-config`: specify MCP servers without modifying config
+  
+  **Adaptation notes**: Proprietary with account dependency makes it unsuitable as a general-purpose backend. Model choice is not user-configurable. Useful only if Sourcegraph/Amp relationship exists.
+  
+  ---
+  
+  ### Not Suitable
+  
+  **Cody (Sourcegraph)**: IDE extension only (VS Code, JetBrains). No standalone CLI for subprocess invocation.
+  
+  **Continue**: IDE extension only (VS Code, JetBrains). No standalone CLI.
+  
+  ---
+  
+  ## 3. Non-Anthropic Models in Claude Code
+  
+  Claude Code (`claude --print`) can be redirected to non-Anthropic model endpoints without changing the invocation command — only environment variables change.
+  
+  ### Official Environment Variables
+  
+  | Variable | Purpose |
+  |---|---|
+  | `ANTHROPIC_BASE_URL` | Redirect all API calls to a compatible endpoint |
+  | `ANTHROPIC_API_KEY` | API key for the endpoint |
+  | `ANTHROPIC_AUTH_TOKEN` | Alternative auth (used by Ollama: set to `"ollama"`) |
+  | `ANTHROPIC_MODEL` | Override model name for the session |
+  | `ANTHROPIC_DEFAULT_OPUS_MODEL` | Pin the `opus` alias to a specific model ID |
+  | `ANTHROPIC_DEFAULT_SONNET_MODEL` | Pin the `sonnet` alias to a specific model ID |
+  | `ANTHROPIC_DEFAULT_HAIKU_MODEL` | Pin the `haiku` alias to a specific model ID |
+  | `ANTHROPIC_CUSTOM_MODEL_OPTION` | Add a custom model entry (no ID validation) |
+  | `CLAUDE_CODE_SUBAGENT_MODEL` | Model for subagent invocations |
+  | `CLAUDE_CODE_EFFORT_LEVEL` | `low`/`medium`/`high`/`max` reasoning effort |
+  
+  ### Model Flags
+  
+  ```bash
+  claude --model claude-sonnet-4-6 -p "prompt"
+  claude --model opus -p "prompt"
+  claude -p --fallback-model sonnet "prompt"   # print mode only
+  ```
+  
+  ### Documented Third-Party Integrations
+  
+  **Ollama** (official, native Anthropic-compatible API):
+  ```bash
+  ANTHROPIC_AUTH_TOKEN=ollama
+  ANTHROPIC_BASE_URL=http://localhost:11434
+  claude -p "prompt"
+  ```
+  
+  **LiteLLM proxy**: translates between provider formats to Anthropic Messages API. Supports OpenAI, Gemini, Mistral, and others as targets.
+  
+  **Bifrost** (Maxim AI, open-source): AI gateway routing Claude Code requests to OpenAI, Gemini, Mistral via env var change.
+  
+  **Claude Code Router** (community — musistudio/claude-code-router): routes to OpenRouter, DeepSeek, Ollama, Gemini, Volcengine.
+  
+  **Officially supported providers via base URL override**: AWS Bedrock (inference profile ARNs), Google Vertex AI, Microsoft Foundry.
+  
+  ### Critical Constraint
+  
+  The target model must support tool use / function calling. Claude Code depends on tool calls for file read, file edit, and bash execution. Models without tool calling support will fail immediately. This is the binding constraint for Ollama model selection.
+  
+  ---
+  
+  ## 4. Abstraction Interface Design
+  
+  ### Current Codebase State
+  
+  The insertion point is `_run_claude_job` in `server.py:366`. The function is hardcoded:
+  
+  ```python
+  def _run_claude_job(record: JobRecord) -> tuple[str, int, str | None]:
+      cmd = [
+          "claude", "--print", "--output-format", "json",
+          "--permission-mode", record.permission_mode,
+          "--max-turns", str(record.max_turns),
+          "--cwd", record.working_dir,
+      ]
+      if record.allowed_tools:
+          cmd.extend(["--allowedTools", ",".join(record.allowed_tools)])
+      cmd.append(record.prompt)
+      proc = subprocess.Popen(cmd, stdout=PIPE, stderr=PIPE, text=True, cwd=record.working_dir)
+      ...
+  ```
+  
+  There is no agent selection configuration. The function name is the natural abstraction boundary.
+  
+  ### Headless Invocation Matrix
+  
+  | Tool | Non-interactive command | JSON output | Structured output |
+  |---|---|---|---|
+  | Claude Code | `claude -p "prompt"` | `--output-format json` | Final summary object |
+  | opencode | `opencode run "prompt"` | `--format json` | Event stream |
+  | Aider | `aider --message "prompt" --yes` | None | Plain text only |
+  | Goose | `goose run -t "prompt"` | None (recipe param) | Plain text |
+  | OpenHands-CLI | `openhands --headless -t "prompt"` | `--json` | JSON blob |
+  | SWE-agent | `sweagent run ...` | `.traj.json` files | Trajectory file |
+  | Amp | `amp -x "prompt"` | `--stream-json` | Streaming JSON |
+  
+  ### Minimal Driver Interface
+  
+  A thin three-method protocol per backend is sufficient. The `JobRequest` fields (`prompt`, `working_dir`, `max_turns`, `timeout`, `permission_mode`, `allowed_tools`) are the shared input schema.
+  
+  ```python
+  class AgentDriver(Protocol):
+      def build_command(self, record: JobRecord) -> list[str]:
+          """Return argv for subprocess.Popen."""
+          ...
+  
+      def build_env(self, base_env: dict[str, str]) -> dict[str, str]:
+          """Return env var overrides to inject into the subprocess environment."""
+          ...
+  
+      def parse_output(self, stdout: str, stderr: str, exit_code: int) -> AgentResult:
+          """Extract structured result from raw subprocess output."""
+          ...
+  ```
+  
+  Driver selection via a single env var (`OUTPOST_AGENT_BACKEND=claude|opencode|aider|...`) or a per-job field added to `JobRequest`. The `_run_claude_job` function becomes a thin dispatcher.
+  
+  ### Capability gaps to handle per driver
+  
+  - **Permission mode**: Only Claude Code has `--permission-mode`. Other tools use `--dangerously-allow-all` (Amp), `--always-approve` (OpenHands), or have no equivalent — drivers must map or omit.
+  - **Max turns**: Only Claude Code and (partially) other tools expose this. Drivers that lack it should ignore the field.
+  - **Allowed tools**: Claude Code has `--allowedTools`. opencode has `--allowedTools`. Aider, Goose, SWE-agent do not — drivers ignore the field.
+  - **Output format**: Only Claude Code and opencode have structured JSON output. Aider and Goose return plain text — the `parse_output` method handles normalization.
+  
+  ### Emerging Standards
+  
+  **MCP (Model Context Protocol)**: Dominant standard for agent-tool connectivity. Anthropic-originated, now Linux Foundation AAIF. All major tools support MCP server configuration. Not a subprocess invocation protocol.
+  
+  **ACP (Agent Client Protocol)**: Developed by Zed Industries, implemented by opencode (`opencode acp` command). Enables agent-editor integration without vendor lock-in. Relevant if Outpost moves to a server-mode rather than subprocess model.
+  
+  **AGENTS.md**: OpenAI standard (August 2025) for project-level agent configuration. Now AAIF alongside MCP and goose. Relevant for per-repo agent behavior standardization.
+  
+  None of these provide a common subprocess invocation interface — the driver abstraction remains the right approach.
+  
+  ---
+  
+  ## 5. Security Implications
+  
+  ### Claude Code
+  
+  Built-in OS-level sandboxing using:
+  - **Linux**: bubblewrap
+  - **macOS**: seatbelt (Sandbox.framework)
+  
+  Two enforced boundaries:
+  1. **Filesystem isolation**: read/write access restricted to CWD; modifications outside CWD are blocked. Applies to all subprocesses spawned by claude.
+  2. **Network isolation**: outbound traffic routed through a unix domain socket proxy; proxy enforces domain allowlists; new domain connections require user confirmation (configurable).
+  
+  Internal result: reduces permission prompts by 84% while maintaining safety. The sandbox is opt-in but available without container changes.
+  
+  ### Other Tools
+  
+  None of the alternatives (opencode, Aider, Goose, SWE-agent, OpenHands-CLI) have equivalent built-in sandboxing. They run with full process permissions inherited from the container or shell.
+  
+  ### Implications for Outpost
+  
+  **Container isolation is the only boundary for non-Claude-Code backends.**
+  
+  | Concern | Claude Code | Other tools |
+  |---|---|---|
+  | Filesystem escape | Blocked by bubblewrap/seatbelt | Container filesystem only |
+  | Network exfiltration | Blocked by proxy allowlist | Container network rules only |
+  | Spawned subprocess scope | Sandboxed | Inherits container permissions |
+  | SSH key access | Blocked (outside CWD) | Accessible if mounted |
+  
+  **Standard Docker is insufficient for untrusted workloads.** Docker containers share the host kernel — a compromised agent attempting a kernel exploit only encounters container namespaces, not a hardware boundary. For production multi-tenant use with non-Claude-Code backends, use:
+  - **gVisor** (Google) — application-level kernel; container thinks it has a Linux kernel but system calls are intercepted
+  - **Kata Containers** — MicroVM per container; dedicated guest kernel
+  - **Firecracker** (AWS) — MicroVM; used by AWS Lambda
+  
+  **Network egress**: Claude Code's proxy-based control allows tighter outbound firewall rules on the container (only the proxy socket needs external access). Other tools need direct outbound HTTPS to model API endpoints (api.anthropic.com, api.openai.com, etc.) plus any package registries the task touches.
+  
+  **Filesystem**: All tools require write access to `working_dir`. SWE-agent's stateless action model is the easiest to sandbox externally — each action is an independent `subprocess.run` that can be swapped to `docker exec` against a separate container, providing per-action isolation without modifying SWE-agent itself.
+  
+  **Privilege requirements**: No tool requires `--privileged` container mode for standard coding tasks.
+  
+  **Practical recommendation**: For the initial multi-backend implementation, treat the container as the security boundary and document that non-Claude-Code backends require stronger container isolation than a standard Docker container if the workload is untrusted. Claude Code's built-in sandboxing is a meaningful differentiator for shared-infrastructure deployments.
+  
+  ---
+  
+  ## Backend Comparison Summary
+  
+  | Tool | Headless command | JSON out | Models | License | Maturity | Built-in sandbox |
+  |---|---|---|---|---|---|---|
+  | Claude Code | `claude -p "prompt"` | Yes | Anthropic + gateway | Proprietary | Production | Yes (bubblewrap/seatbelt) |
+  | opencode | `opencode run "prompt"` | Event stream | 75+ providers | MIT | Production | No |
+  | Aider | `aider --message "prompt" --yes` | No | Any LLM | Apache 2.0 | Production | No |
+  | Goose | `goose run -t "prompt"` | No | 25+ providers | Apache 2.0 | Production | No |
+  | OpenHands-CLI | `openhands --headless -t "prompt"` | Yes (`--json`) | Any provider | MIT | Early | No (needs Docker) |
+  | SWE-agent | `sweagent run ...` | Traj files | Any (LiteLLM) | MIT | Research | Per-action (Docker) |
+  | Amp | `amp -x "prompt"` | Stream JSON | Curated set | Proprietary | Production | No |
+  
+  **Priority order for Outpost integration**:
+  1. **opencode** — closest command structure, JSON output, MIT, provider-agnostic, actively maintained; driver would be minimal
+  2. **Aider** — most mature, broadest model support, but output parsing requires text extraction and git-commit behavior may interfere
+  3. **Goose** — mature and well-governed, but no JSON output and no tool restriction flags
+  4. **Claude Code + gateway** — use the existing backend, redirect to non-Anthropic models via `ANTHROPIC_BASE_URL` — no driver change needed, just env var injection
+  
+  ---
+  
+  ## Sources
+  
+  - [opencode CLI docs](https://opencode.ai/docs/cli/)
+  - [github.com/sst/opencode](https://github.com/sst/opencode)
+  - [Aider scripting docs](https://aider.chat/docs/scripting.html)
+  - [Goose headless mode](https://block.github.io/goose/docs/tutorials/headless-goose/)
+  - [github.com/block/goose](https://github.com/block/goose)
+  - [OpenHands-CLI GitHub](https://github.com/OpenHands/OpenHands-CLI)
+  - [OpenHands headless docs](https://docs.openhands.dev/openhands/usage/cli/headless)
+  - [SWE-agent models docs](https://swe-agent.com/latest/config/models/)
+  - [mini-SWE-agent](https://github.com/SWE-agent/mini-swe-agent)
+  - [Amp manual](https://ampcode.com/manual)
+  - [Claude Code CLI reference](https://code.claude.com/docs/en/cli-reference)
+  - [Claude Code model config](https://code.claude.com/docs/en/model-config)
+  - [Claude Code sandboxing](https://www.anthropic.com/engineering/claude-code-sandboxing)
+  - [LiteLLM non-Anthropic tutorial](https://docs.litellm.ai/docs/tutorials/claude_non_anthropic_models)
+  - [Ollama + Claude Code](https://ollama.com/blog/claude)
+  - [ACP intro](https://block.github.io/goose/blog/2025/10/24/intro-to-agent-client-protocol-acp/)
+  - [Linux Foundation AAIF announcement](https://www.linuxfoundation.org/press/linux-foundation-announces-the-formation-of-the-agentic-ai-foundation)
+  - [How to sandbox AI agents (Northflank)](https://northflank.com/blog/how-to-sandbox-ai-agents)
+  - Codebase: `/Users/dan/code/outpost/mcp/remote-worker/server.py` (lines 366–420, 43–74)
+content_hash: "3b90a48001f077294925145e654ac14f11454784572bbd19fc5a70071695df65"
+token_count: 5403

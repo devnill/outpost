@@ -1,0 +1,18 @@
+id: F-001-006
+type: finding
+cycle: 1
+reviewer: code-reviewer
+severity: minor
+title: "`_session_registry` is process-wide mutable state that violates the Stateless Server principle"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:1195`
+  - **Issue**: The guiding principles state "no persistent state between tool calls; filesystem only." The `_session_registry` list is in-process mutable state that persists across tool calls. While not a crash risk, it is an architectural inconsistency.
+  - **Suggested fix**: As noted in S3, replace with a bounded deque or eliminate in-memory accumulation entirely.
+file_path: cycles/001/findings/F-001-006.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-001
+verdict: Fail
+content_hash: "9644d1c30ea14bdca20136e47229559a2aedee3eb0036535913bbbc180bfb2f5"
+token_count: 198

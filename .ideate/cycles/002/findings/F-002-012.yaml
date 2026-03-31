@@ -1,0 +1,17 @@
+id: F-002-012
+type: finding
+cycle: 2
+reviewer: code-reviewer
+severity: minor
+title: "`_handle_spawn_remote_session` does not validate `working_dir` before HTTP calls (carry-forward)"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/server.py:713-855`
+  - **Issue**: Unlike `spawn_session`, the remote dispatch path sends `working_dir` to the remote worker without local existence check. The caller gets an opaque HTTP 400 from the remote rather than a structured local error.
+file_path: cycles/002/findings/F-002-012.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: cycle-002
+verdict: Fail
+content_hash: "3f941cdd28a185d6e1462cf9ec2bb59354cfef4c715617fdf087238395115648"
+token_count: 163

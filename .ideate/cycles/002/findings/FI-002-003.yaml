@@ -1,0 +1,18 @@
+id: FI-002-003
+type: finding
+cycle: 2
+reviewer: code-reviewer
+severity: minor
+title: "`_reset_globals` fixture resets `_roles` to `{}`, hiding failures from role-loading code paths"
+description: |
+  - **File**: `/Users/dan/code/outpost/mcp/session-spawner/test_server.py:60`
+  - **Issue**: `spawner._roles = {}` in the autouse fixture means every test that exercises roles must manually populate `_roles`. This is the correct pattern to prevent cross-test contamination, but it also means `_load_roles()` (including its fallback to `~/.outpost/roles.json`) is never exercised by any test. There is no test that calls `main()` or `_load_roles()` directly.
+  - **Suggested fix**: Add one test that calls `spawner._load_roles()` with a temporary roles JSON file and asserts the returned dict contains the expected entries.
+file_path: cycles/002/findings/FI-002-003.yaml
+line: null
+suggestion: null
+addressed_by: null
+work_item: WI-011
+verdict: Pass
+content_hash: ac42d10c2cd043f001840b94314ec52151dae4766ff07e3f22d26915adfce017
+token_count: 242

@@ -1,0 +1,13 @@
+id: D-10
+type: domain_decision
+domain: session-lifecycle
+status: settled
+cycle: 1
+supersedes: null
+description: The timeout code path now mirrors the success path's overflow-file logic, writing large partial output to a temp file so callers can recover the full content.
+rationale: Without this, callers could not recover full partial output from timed-out sessions that exceeded the inline truncation limit.
+cycle_created: 1
+cycle_modified: null
+content_hash: "8acde050c701f732500daadc928b9f76e9c05fa52246eff6bf733f1609a4c8f2"
+token_count: 128
+file_path: .ideate/decisions/D-10.yaml
